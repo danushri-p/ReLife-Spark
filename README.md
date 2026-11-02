@@ -1,4 +1,4 @@
-# RepairWise AI 🔧📱
+# ReLife-Spark 🔧📱
 
 An AI-powered decision-support web application that helps users decide whether to **repair or replace** damaged electronic devices using quotation analysis, document-based knowledge retrieval (RAG), and transparent cost comparisons.
 
@@ -6,7 +6,7 @@ An AI-powered decision-support web application that helps users decide whether t
 
 ## 📌 Overview
 
-- **Project Name:** RepairWise AI
+- **Project Name:** ReLife-Spark
 - **Type:** AI-Powered Web Application
 - **Sprint Duration:** 4 Days
 - **Goal:** Provide clear, data-driven cost and repair feasibility comparisons so users make informed choices and reduce unnecessary e-waste.
@@ -15,9 +15,9 @@ An AI-powered decision-support web application that helps users decide whether t
 When electronic devices break, comparing repair costs, technician quotes, and replacement prices is difficult because pricing is fragmented and unclear. As a result, users frequently overpay for repairs or discard fixable devices, increasing e-waste.
 
 ### Solution
-RepairWise AI aggregates device details, extracts data from repair quotes, performs deterministic cost comparisons, and uses RAG with manufacturer documentation to provide objective insights.
+ReLife-Spark aggregates device details, extracts data from repair quotes, performs deterministic cost comparisons, and uses RAG with manufacturer documentation to provide objective insights.
 
-> **⚠️ Important Notice:** RepairWise AI is an informational tool. It does **not** guarantee unbiased decisions, diagnose hardware faults conclusively, or assess technician honesty based on price.
+> **⚠️ Important Notice:** ReLife-Spark is an informational tool. It does **not** guarantee unbiased decisions, diagnose hardware faults conclusively, or assess technician honesty based on price.
 
 ---
 
@@ -82,7 +82,7 @@ flowchart TD
 ## 📂 Project Structure
 
 ```
-RepairWise-AI/
+ReLife-Spark/
 ├── client/                     # Frontend (React + Vite)
 │   ├── src/
 │   │   ├── api/                # Axios configuration
