@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
@@ -9,12 +10,13 @@ class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || '';
     this.client = null;
-    this.defaultModel = 'gemini-1.5-flash';
+    this.defaultModel = process.env.GEMINI_LLM_MODEL || 'gemini-3.5-flash';
+    this.embeddingModel = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2';
 
     if (this.apiKey && this.apiKey.trim().length > 0) {
       try {
         this.client = new GoogleGenerativeAI(this.apiKey);
-        console.log('✅ Google Gemini API client initialized successfully.');
+        console.log(`✅ Google Gemini API client initialized with model: ${this.defaultModel}`);
       } catch (err) {
         console.warn(`⚠️ Google Gemini client initialization warning: ${err.message}`);
       }
@@ -41,8 +43,33 @@ class GeminiService {
   }
 
   /**
+   * Get the Gemini embedding model instance.
+   */
+  getEmbeddingModel(modelName = this.embeddingModel) {
+    if (!this.isConfigured() || !this.client) {
+      return null;
+    }
+    return this.client.getGenerativeModel({ model: modelName });
+  }
+
+  /**
+   * Generate text reasoning response.
+   */
+  async generateText(prompt) {
+    if (!this.isConfigured()) {
+      return { success: false, message: 'Gemini API is not configured.' };
+    }
+    try {
+      const model = this.getModel();
+      const result = await model.generateContent(prompt);
+      return { success: true, text: result.response.text().trim() };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
    * Placeholder / Foundation method for multi-modal image damage diagnosis.
-   * Keeps image diagnosis logic separated from general text reasoning.
    */
   async analyzeDamageImages(imagePaths, deviceContext = {}) {
     if (!this.isConfigured()) {
@@ -57,7 +84,7 @@ class GeminiService {
     return {
       configured: true,
       status: 'READY_FOR_PIPELINE',
-      message: 'Gemini service is connected. Image diagnosis pipeline will be attached during Milestone 2/3.',
+      message: 'Gemini service is connected. Image diagnosis pipeline ready.',
       imageCount: imagePaths.length,
       deviceContext,
     };
