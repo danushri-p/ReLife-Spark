@@ -4,6 +4,8 @@
 
 ReLife-Spark is an AI-powered smartphone repair decision platform that helps users determine whether repairing or replacing a damaged smartphone is the better option. By analyzing device information, damage images, repair quotations, and replacement costs, it provides transparent cost comparisons and intelligent recommendations.
 
+---
+
 ## 1. Problem Statement
 
 When electronic devices break, people often struggle to decide whether repairing or replacing them is the better option. Repair costs, technician quotations, replacement prices, and device conditions are difficult to compare because the information is scattered and not always transparent.
@@ -24,6 +26,8 @@ Users can:
 The platform analyzes the submitted information, compares repair costs with reference prices, calculates a Repair Score, and provides an understandable recommendation.
 
 It also uses **Google Gemini AI** and **Retrieval-Augmented Generation (RAG)** to provide explanations based on trusted repair guides and warranty documents.
+
+> **⚠️ Important Notice:** ReLife-Spark is an informational tool. It does **not** guarantee unbiased decisions, diagnose hardware faults conclusively, or assess technician honesty based on price.
 
 ## 3. Project Requirements
 
@@ -108,39 +112,160 @@ ReLife-Spark uses a weighted scoring system to evaluate whether repairing or rep
 |---|---|
 | Frontend | React.js + Vite |
 | Styling | Tailwind CSS |
-| Programming Language | JavaScript |
+| Programming Language | JavaScript (ES Modules) |
+| Routing & State | React Router DOM |
+| HTTP Client | Axios |
+| UI Icons | Lucide React |
 | Backend | Node.js + Express.js |
-| Database | MongoDB Atlas |
-| AI Model | Google Gemini API |
-| Embeddings | Gemini Embedding API |
-| RAG | MongoDB Atlas Vector Search |
+| Database | MongoDB Atlas + Mongoose |
+| Security | Helmet, CORS, Express Validator |
+| File Uploads | Multer (Images & PDFs) |
+| AI Model | Google Gemini API (Gemini 1.5 Flash) |
+| Embeddings | Gemini Embedding API (text-embedding-004) |
+| RAG Retrieval | MongoDB Atlas Vector Search |
 | API Testing | Postman |
 | Version Control | Git + GitHub |
-| Frontend Deployment | Vercel |
-| Backend Deployment | Render |
+| Deployment | Vercel (Frontend), Render (Backend) |
 
-## 6. System Requirements
+## 6. Project Architecture & Folder Structure
 
-Before running the project, ensure the following are available:
+```text
+ReLife-Spark/
+│
+├── client/                     # Frontend (React + Vite + Tailwind CSS)
+│   ├── public/
+│   │   └── spark.svg           # Application favicon
+│   ├── src/
+│   │   ├── assets/             # Static assets & illustrations
+│   │   ├── components/         # Reusable UI & Layout Components
+│   │   │   ├── common/
+│   │   │   ├── layout/         # Navbar, Footer
+│   │   │   └── ui/             # Card, Button, Alert
+│   │   ├── pages/              # Home, Dashboard, DeviceDetails, RepairAnalysis, KnowledgeAssistant
+│   │   ├── services/           # api.js, deviceService.js, healthService.js, uploadService.js
+│   │   ├── hooks/              # Custom React hooks
+│   │   ├── context/            # React context providers
+│   │   ├── utils/              # Client formatters and helpers
+│   │   ├── App.jsx             # Main Router configuration
+│   │   ├── main.jsx            # React root entry point
+│   │   └── index.css           # Tailwind CSS directives & global styling
+│   ├── .env.example            # Frontend environment template
+│   ├── package.json
+│   ├── vite.config.js
+│   └── tailwind.config.js
+│
+├── server/                     # Backend (Node.js + Express + Mongoose)
+│   ├── src/
+│   │   ├── config/             # db.js (MongoDB Mongoose connection)
+│   │   ├── controllers/        # health, device, diagnosis, quote, repair, assistant controllers
+│   │   ├── models/             # Device.js Mongoose schema
+│   │   ├── routes/             # Express API routes
+│   │   ├── middleware/         # errorHandler.js, upload.js (Multer)
+│   │   ├── services/           # geminiService.js (Google GenAI integration)
+│   │   ├── utils/              # Deterministic calculation engine & helpers
+│   │   ├── validators/         # deviceValidator.js (express-validator)
+│   │   ├── app.js              # Express app setup, CORS, Helmet, routes
+│   │   └── server.js           # Server listen & graceful shutdown
+│   ├── uploads/                # Local staging for uploaded files (.gitkeep)
+│   ├── .env.example            # Backend environment template
+│   └── package.json
+│
+├── .gitignore
+├── package.json                # Root orchestration with concurrently
+└── README.md
+```
 
-- Node.js and npm
-- MongoDB Atlas account
+## 7. API Endpoint Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/health` | Service health, uptime, MongoDB state, and Gemini readiness |
+| `POST` | `/api/devices` | Submit smartphone details and problem symptoms |
+| `GET` | `/api/devices/:id` | Retrieve stored device details by ID |
+| `POST` | `/api/diagnosis/upload` | Upload smartphone damage photos (Multer validation) |
+| `POST` | `/api/quotes/upload` | Upload repair quotation documents (PDF / Image) |
+| `POST` | `/api/repair/analyze` | Evaluate repair score and cost comparison |
+| `POST` | `/api/assistant/chat` | Conversational RAG knowledge assistant |
+
+## 8. Installation & Setup Guide
+
+### 8.1 System Prerequisites
+- Node.js (v18.0.0 or later, v20 LTS recommended)
+- npm (v9+)
+- MongoDB Atlas cluster connection string
 - Google Gemini API key
-- Git and GitHub
-- Code editor such as Visual Studio Code
 
-## 7. Expected Outcome
+### 8.2 Installation Steps
 
-ReLife-Spark aims to provide a platform where users can:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/<your-username>/ReLife-Spark.git
+   cd ReLife-Spark
+   ```
 
-- Understand possible smartphone damage.
-- Analyze and compare repair quotations.
-- Compare repair and replacement costs.
-- Receive an understandable repair recommendation.
-- Access repair and warranty information through AI.
-- Understand the potential financial and environmental impact of their decision.
+2. **Install root dependencies:**
+   ```bash
+   npm install
+   ```
 
-## 8. Project Vision
+3. **Install server dependencies:**
+   ```bash
+   cd server
+   npm install
+   cp .env.example .env
+   ```
+
+4. **Install client dependencies:**
+   ```bash
+   cd ../client
+   npm install
+   cp .env.example .env
+   ```
+
+### 8.3 Environment Configuration
+
+**`server/.env`:**
+```env
+PORT=5000
+NODE_ENV=development
+CLIENT_URL=http://localhost:5173
+MONGODB_URI=your_mongodb_atlas_connection_string
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+**`client/.env`:**
+```env
+VITE_API_BASE_URL=http://localhost:5000/api
+```
+
+## 9. Running the Application
+
+### Option A: Run Both Frontend & Backend Concurrently (Recommended)
+From the root directory:
+```bash
+npm run dev
+```
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:5000/api
+- **Health Check:** http://localhost:5000/api/health
+
+### Option B: Run Individually
+
+**Start the Backend Server:**
+```bash
+npm run dev:server
+# or
+cd server && npm run dev
+```
+
+**Start the Frontend Client:**
+```bash
+npm run dev:client
+# or
+cd client && npm run dev
+```
+
+## 10. Expected Outcome & Project Vision
 
 ReLife-Spark aims to make smartphone repair decisions more transparent, affordable, and sustainable.
 
