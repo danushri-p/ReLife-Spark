@@ -1,41 +1,66 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
+import { AuthProvider } from './context/AuthContext';
+import AppLayout from './components/app/AppLayout';
+import RequireAuth from './components/app/RequireAuth';
 
-// Pages
+// Public pages
 import Home from './pages/Home';
+import Login from './pages/Login';
+
+// Signed-in pages
+import Overview from './pages/app/Overview';
+import History from './pages/app/History';
 import Dashboard from './pages/Dashboard';
 import DeviceDetails from './pages/DeviceDetails';
 import RepairAnalysis from './pages/RepairAnalysis';
 import KnowledgeAssistant from './pages/KnowledgeAssistant';
 
+/** Marketing site chrome: floating navbar + footer. */
+const PublicLayout = () => (
+  <div className="relative flex min-h-screen flex-col bg-[#E6E8EA] font-sans text-slate-900 selection:bg-[#0d4a3e] selection:text-white">
+    <Navbar />
+    <main className="mx-auto w-full flex-1">
+      <Outlet />
+    </main>
+    <Footer />
+  </div>
+);
+
 export function App() {
   return (
     <BrowserRouter>
-      <div className="flex flex-col min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-emerald-500 selection:text-white">
-        {/* Navigation Bar */}
-        <Navbar />
-
-        {/* Main Content Area */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <Routes>
+      <AuthProvider>
+        <Routes>
+          <Route element={<PublicLayout />}>
             <Route path="/" element={<Home />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Login />} />
+          </Route>
+
+          <Route
+            element={
+              <RequireAuth>
+                <AppLayout />
+              </RequireAuth>
+            }
+          >
+            <Route path="/app" element={<Overview />} />
+            <Route path="/history" element={<History />} />
             <Route path="/device" element={<DeviceDetails />} />
             <Route path="/analysis" element={<RepairAnalysis />} />
             <Route path="/assistant" element={<KnowledgeAssistant />} />
-            {/* Catch-all redirect to Home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
+            <Route path="/dashboard" element={<Dashboard />} />
+          </Route>
 
-        {/* Footer */}
-        <Footer />
-      </div>
+          {/* Catch-all redirect to Home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
 
 export default App;
-

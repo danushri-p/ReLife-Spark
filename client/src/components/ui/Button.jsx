@@ -10,20 +10,21 @@ export const Button = ({
   icon: Icon,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles = 'inline-flex items-center justify-center font-mono font-semibold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-studio-950';
 
   const variants = {
-    primary: 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm shadow-emerald-600/30 focus:ring-emerald-500',
-    secondary: 'bg-slate-900 text-white hover:bg-slate-800 shadow-sm focus:ring-slate-700',
-    outline: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400 focus:ring-slate-400',
-    ghost: 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:ring-slate-300',
-    danger: 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm focus:ring-rose-500',
+    primary: 'bg-gradient-to-r from-cyan-400 to-cobalt-500 hover:from-cyan-300 hover:to-cobalt-400 text-slate-950 shadow-lg shadow-cyan-500/20 font-bold focus:ring-cyan-400',
+    ai: 'bg-gradient-to-r from-violet-600 to-cobalt-500 hover:from-violet-500 hover:to-cobalt-400 text-white shadow-lg shadow-violet-500/20 font-bold focus:ring-violet-400',
+    secondary: 'bg-studio-800 text-white hover:bg-studio-700 border border-white/10 focus:ring-slate-500 shadow-sm',
+    outline: 'border border-white/10 bg-studio-900/90 text-slate-300 hover:text-white hover:border-cyan-500/40 hover:bg-studio-800/80 focus:ring-cyan-500',
+    ghost: 'text-slate-400 hover:text-white hover:bg-studio-800/60 focus:ring-slate-600',
+    danger: 'bg-coral-600 text-white hover:bg-coral-500 shadow-lg shadow-coral-600/20 focus:ring-coral-500',
   };
 
   const sizes = {
     sm: 'text-xs px-3 py-1.5 gap-1.5',
-    md: 'text-sm px-4 py-2.5 gap-2',
-    lg: 'text-base px-6 py-3 gap-2.5',
+    md: 'text-xs sm:text-sm px-4 py-2.5 gap-2',
+    lg: 'text-sm sm:text-base px-6 py-3.5 gap-2.5',
   };
 
   return (
@@ -43,4 +44,3 @@ export const Button = ({
 };
 
 export default Button;
-

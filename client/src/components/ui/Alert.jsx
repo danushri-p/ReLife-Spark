@@ -10,25 +10,30 @@ export const Alert = ({
 }) => {
   const types = {
     info: {
-      bg: 'bg-blue-50 border-blue-200 text-blue-900',
+      bg: 'bg-studio-950/90 border-cyan-500/40 text-cyan-200',
       icon: Info,
-      iconColor: 'text-blue-600',
+      iconColor: 'text-cyan-400',
     },
     success: {
-      bg: 'bg-emerald-50 border-emerald-200 text-emerald-900',
+      bg: 'bg-studio-950/90 border-cobalt-500/40 text-cobalt-200',
       icon: CheckCircle2,
-      iconColor: 'text-emerald-600',
+      iconColor: 'text-cyan-400',
     },
     warning: {
-      bg: 'bg-amber-50 border-amber-200 text-amber-900',
+      bg: 'bg-studio-950/90 border-amber-500/40 text-amber-200',
       icon: AlertTriangle,
-      iconColor: 'text-amber-600',
+      iconColor: 'text-amber-400',
     },
     error: {
-      bg: 'bg-rose-50 border-rose-200 text-rose-900',
+      bg: 'bg-studio-950/90 border-coral-500/40 text-coral-200',
       icon: AlertCircle,
-      iconColor: 'text-rose-600',
+      iconColor: 'text-coral-400',
     },
+    ai: {
+      bg: 'bg-studio-950/90 border-violet-500/40 text-violet-200',
+      icon: Info,
+      iconColor: 'text-violet-400',
+    }
   };
 
   const current = types[type] || types.info;
@@ -36,18 +41,18 @@ export const Alert = ({
 
   return (
     <div
-      className={`rounded-xl border p-4 flex items-start gap-3 text-sm ${current.bg} ${className}`}
+      className={`rounded-2xl border p-4 flex items-start gap-3 text-sm backdrop-blur-xl shadow-lg ${current.bg} ${className}`}
       role="alert"
     >
       <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${current.iconColor}`} />
       <div className="flex-1">
-        {title && <h4 className="font-semibold mb-1 text-slate-900">{title}</h4>}
-        <div className="text-slate-700">{children}</div>
+        {title && <h4 className="font-mono font-bold mb-1 text-white">{title}</h4>}
+        <div className="text-slate-300 leading-relaxed text-xs sm:text-sm">{children}</div>
       </div>
       {onClose && (
         <button
           onClick={onClose}
-          className="text-slate-400 hover:text-slate-700 transition-colors p-1"
+          className="text-slate-400 hover:text-white transition-colors p-1"
           aria-label="Close alert"
         >
           <X className="w-4 h-4" />
@@ -58,4 +63,3 @@ export const Alert = ({
 };
 
 export default Alert;
-
