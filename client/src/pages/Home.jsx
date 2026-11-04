@@ -1,164 +1,147 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Sparkles, 
-  Smartphone, 
-  Receipt, 
-  Calculator, 
-  BookOpen, 
-  ArrowRight, 
-  ShieldCheck, 
-  Leaf, 
-  CheckCircle,
-  Cpu,
-  BarChart3
+import {
+  ArrowUpRight,
+  ArrowRight,
+  ArrowDown,
+  ScanLine,
+  CircleCheck,
+  ScanEye,
+  HeartHandshake,
+  Check,
 } from 'lucide-react';
-import { Card } from '../components/ui/Card';
+import AppDetails from '../components/home/AppDetails';
+
+const scrollToLayers = () =>
+  document.getElementById('layers-detail')?.scrollIntoView({ behavior: 'smooth' });
+
+const HeroCard = ({ className = '', children }) => (
+  <div className={`hero-card absolute whitespace-nowrap ${className}`}>{children}</div>
+);
 
 export const Home = () => {
-  const features = [
-    {
-      icon: Smartphone,
-      title: 'Device & Damage Intake',
-      description: 'Document smartphone brand, model, age, and physical condition to tailor repair cost benchmarks.',
-      badge: 'Step 1',
-    },
-    {
-      icon: Receipt,
-      title: 'Quotation Extraction',
-      description: 'Upload PDF or digital technician estimates. Break down parts, labour fees, and warranty terms.',
-      badge: 'Step 2',
-    },
-    {
-      icon: Calculator,
-      title: 'Transparent Cost Engine',
-      description: 'Rule-based calculations comparing repair quotes directly against current device replacement values.',
-      badge: 'Step 3',
-    },
-    {
-      icon: BookOpen,
-      title: 'RAG Knowledge Grounding',
-      description: 'Access official OEM repair guides and warranty terms to ask technical questions with cited sources.',
-      badge: 'Step 4',
-    },
-  ];
-
   return (
-    <div className="space-y-16 py-8">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-emerald-50/60 via-white to-slate-50 border border-emerald-100/60 px-6 py-16 sm:px-12 sm:py-24 text-center">
-        <div className="max-w-3xl mx-auto space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100/80 border border-emerald-300/60 text-emerald-800 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            AI-Powered Smartphone Decision Platform
-          </div>
+    <div>
+      {/* ───────────── HERO ───────────── */}
+      <section className="relative min-h-[100svh] w-full overflow-hidden bg-[#E3E5E7] lg:h-[clamp(720px,100svh,900px)] lg:min-h-0">
+        {/* Phone render — large, cropped at the top, fading into the backdrop on the left */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-full lg:w-[64%]">
+          <img
+            src="/phone-hero.png"
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+            className="hero-render h-full w-full select-none object-cover"
+          />
 
-          <h1 className="text-4xl sm:text-6xl font-extrabold text-slate-900 tracking-tight leading-tight sm:leading-none">
-            Know before <span className="text-emerald-600">you pay.</span>
-          </h1>
+          {/* Thin scan line sweeping up and down across the phone */}
+          <span className="scan-line absolute hidden h-[2px] w-[46%] bg-gradient-to-r from-transparent via-[#0d4a3e]/80 to-transparent lg:block" />
 
-          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Broken smartphone? Stop guessing whether to fix it or buy a replacement. 
-            <span className="font-semibold text-slate-800"> ReLife-Spark</span> brings clarity to repair quotes, transparent cost comparisons, and document-backed advice.
-          </p>
+          {/* Floating diagnostic cards */}
+          <div className="hidden lg:block">
+            <HeroCard className="hero-float-a left-[37%] top-[31%]">
+              <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
+                <ScanLine className="h-3.5 w-3.5 text-[#0d4a3e]" /> Device detected
+              </p>
+              <p className="mt-1.5 text-[15px] font-medium text-slate-900">Samsung Galaxy S23</p>
+              <p className="mt-1 text-[11px] text-slate-500">Illustrative diagnostic</p>
+            </HeroCard>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Link
-              to="/device"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-emerald-600 text-white font-semibold text-base hover:bg-emerald-700 shadow-lg shadow-emerald-600/30 hover:shadow-xl transition-all active:scale-[0.98]"
-            >
-              Get Started with Your Device
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              to="/dashboard"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-white border border-slate-300 text-slate-700 font-semibold text-base hover:bg-slate-50 hover:border-slate-400 transition-all"
-            >
-              Explore Dashboard
-            </Link>
-          </div>
+            <HeroCard className="hero-float-b right-[5%] top-[45%]">
+              <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-600" /> Damage analysis
+              </p>
+              <p className="mt-1.5 text-[15px] font-medium text-slate-900">Screen damage detected</p>
+              <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[#0d4a3e]">
+                <CircleCheck className="h-3.5 w-3.5" /> Analysis complete · demo
+              </p>
+            </HeroCard>
 
-          {/* Value Badges */}
-          <div className="pt-8 flex flex-wrap items-center justify-center gap-6 text-xs font-semibold text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              Deterministic Rule-Based Math
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Cpu className="w-4 h-4 text-emerald-600" />
-              Google Gemini 1.5 Flash
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Leaf className="w-4 h-4 text-emerald-600" />
-              E-Waste Reduction Awareness
-            </span>
+            <HeroCard className="hero-float-c left-[37.5%] top-[70%]">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Repair estimate</p>
+              <p className="mt-1.5 flex items-baseline gap-2.5">
+                <span className="text-[26px] font-semibold leading-none text-slate-900">₹6,500</span>
+                <span className="text-[11px] text-slate-500">Sample estimate</span>
+              </p>
+            </HeroCard>
           </div>
         </div>
-      </section>
 
-      {/* Feature Grid */}
-      <section className="space-y-8">
-        <div className="text-center max-w-2xl mx-auto space-y-2">
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            How ReLife-Spark Works
-          </h2>
-          <p className="text-slate-500 text-sm">
-            A guided four-step workflow designed to evaluate your smartphone repair decision objectively.
-          </p>
-        </div>
+        {/* Readability wash on small screens, where the render sits behind the copy */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#E3E5E7] via-[#E3E5E7]/85 to-[#E3E5E7]/30 lg:hidden" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((item, index) => {
-            const Icon = item.icon;
-            return (
-              <Card key={index} hover className="flex flex-col justify-between">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-                      <Icon className="w-6 h-6" />
-                    </div>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
-                      {item.badge}
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-lg mb-1">{item.title}</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">{item.description}</p>
-                  </div>
+        {/* Copy */}
+        <div className="relative z-10 flex min-h-[100svh] items-center lg:h-full lg:min-h-0">
+          <div className="mx-auto w-full max-w-7xl px-6">
+            <div className="max-w-[620px] pb-24 pt-32 lg:pt-36">
+              <p className="text-[17px] font-medium text-slate-800">ReLife-Spark</p>
+
+              <h1 className="mt-4 text-[2.3rem] font-medium leading-[1.12] tracking-[-0.01em] text-[#16201d] sm:text-[3.25rem] lg:text-[3.6rem]">
+                Cracked Screen?
+                <br />
+                Get Clarity
+                <br />
+                Before You Pay<span className="text-[#0d4a3e]">.</span>
+              </h1>
+
+              <p className="mt-8 max-w-[530px] text-[17px] leading-[2.05] text-slate-600">
+                Understand your device damage, analyze repair quotations, and discover whether
+                repairing or replacing your smartphone makes more sense with AI.
+              </p>
+
+              <div className="mt-9 flex flex-wrap items-center gap-8">
+                <Link
+                  to="/device"
+                  className="inline-flex items-center gap-3 rounded-md bg-[#0d5b46] px-6 py-[18px] text-[17px] font-medium text-white shadow-[0_12px_24px_-12px_rgba(13,74,62,0.7)] transition hover:bg-[#0a4a39] active:scale-[0.98]"
+                >
+                  Analyze My Device
+                  <ArrowUpRight className="h-[18px] w-[18px]" />
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={scrollToLayers}
+                  className="inline-flex items-center gap-3 text-[15px] font-medium text-slate-800 transition-colors hover:text-[#0d4a3e]"
+                >
+                  Explore AI Features
+                  <ArrowRight className="h-[18px] w-[18px]" />
+                </button>
+              </div>
+
+              <div className="mt-10 space-y-2.5">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <ScanEye className="h-4 w-4" /> No guesswork
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <HeartHandshake className="h-4 w-4" /> No pressure
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Check className="h-4 w-4" /> Just clarity.
+                  </span>
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Philosophy / Disclaimer Banner */}
-      <section className="bg-slate-900 text-slate-100 rounded-3xl p-8 sm:p-12 border border-slate-800">
-        <div className="max-w-3xl space-y-4">
-          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-            Our Commitment to Objectivity
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            No biased claims. No fabricated diagnostics.
-          </h2>
-          <p className="text-slate-300 text-sm leading-relaxed">
-            ReLife-Spark does not claim to diagnose internal hardware faults purely over software, 
-            nor does it label local repair shops as dishonest based on price differences alone. 
-            All mathematical formulas are transparent, and all technical literature is cited directly.
-          </p>
-          <div className="pt-2">
-            <Link
-              to="/device"
-              className="inline-flex items-center gap-2 text-emerald-400 font-semibold hover:text-emerald-300 text-sm"
-            >
-              Start an assessment now <ArrowRight className="w-4 h-4" />
-            </Link>
+                <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400">
+                  Smarter for your wallet. Better for the planet.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={scrollToLayers}
+          className="absolute bottom-8 right-6 z-10 hidden items-center gap-3 text-[13px] text-slate-700 transition-colors hover:text-[#0d4a3e] lg:right-10 lg:flex"
+        >
+          <ScanLine className="h-4 w-4" />
+          Explore diagnostic
+          <ArrowDown className="h-4 w-4" />
+        </button>
       </section>
+
+      <AppDetails />
     </div>
   );
 };
 
 export default Home;
-
