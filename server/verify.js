@@ -42,9 +42,9 @@ async function runSelfCheck() {
   console.log('\n3️⃣  Checking Google Gemini AI Integration:');
   if (geminiService.isConfigured()) {
     try {
-      const res = await geminiService.generateText('Respond with exactly: "AI connection confirmed!"');
+      const res = await geminiService.generateText('Respond with: AI connection confirmed!');
       if (res.success) {
-        console.log(`   ✅ Model: ${geminiService.defaultModel}`);
+        console.log(`   ✅ Model Active: ${res.modelUsed || geminiService.defaultModel}`);
         console.log(`   ✅ Live AI Response: "${res.text}"`);
         passed++;
       } else {

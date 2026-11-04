@@ -3,15 +3,20 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
  * Gemini Service Integration Foundation for ReLife-Spark.
- * Prepares the structure for future image damage diagnosis, quotation parsing,
- * and conversational RAG explanations while keeping keys secure on the server.
+ * Implements resilient multi-model failover for 503/429 high demand spikes.
  */
 class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || '';
     this.client = null;
-    this.defaultModel = process.env.GEMINI_LLM_MODEL || 'gemini-3.5-flash';
+    this.defaultModel = process.env.GEMINI_LLM_MODEL || 'gemini-3.1-flash-lite';
     this.embeddingModel = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2';
+    this.candidateModels = [
+      this.defaultModel,
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+      'gemini-3.1-flash-lite',
+    ].filter((v, i, a) => a.indexOf(v) === i); // unique
 
     if (this.apiKey && this.apiKey.trim().length > 0) {
       try {
@@ -53,23 +58,38 @@ class GeminiService {
   }
 
   /**
-   * Generate text reasoning response.
+   * Generate text reasoning response with automatic failover if Google servers experience high demand (503/429).
    */
   async generateText(prompt) {
     if (!this.isConfigured()) {
       return { success: false, message: 'Gemini API is not configured.' };
     }
-    try {
-      const model = this.getModel();
-      const result = await model.generateContent(prompt);
-      return { success: true, text: result.response.text().trim() };
-    } catch (err) {
-      return { success: false, error: err.message };
+
+    let lastError = null;
+
+    for (const modelName of this.candidateModels) {
+      try {
+        const model = this.getModel(modelName);
+        const result = await model.generateContent(prompt);
+        return {
+          success: true,
+          modelUsed: modelName,
+          text: result.response.text().trim(),
+        };
+      } catch (err) {
+        lastError = err;
+        console.warn(`⚠️ Model ${modelName} encountered temporary issue (${err.message.substring(0, 80)}...). Trying backup model...`);
+      }
     }
+
+    return {
+      success: false,
+      error: lastError ? lastError.message : 'All Gemini candidate models failed to respond.',
+    };
   }
 
   /**
-   * Placeholder / Foundation method for multi-modal image damage diagnosis.
+   * Placeholder method for multi-modal image damage diagnosis.
    */
   async analyzeDamageImages(imagePaths, deviceContext = {}) {
     if (!this.isConfigured()) {
@@ -91,7 +111,7 @@ class GeminiService {
   }
 
   /**
-   * Placeholder / Foundation method for text reasoning and conversational assistant.
+   * Placeholder method for text reasoning and conversational assistant.
    */
   async generateRepairGuidance(prompt, context = {}) {
     if (!this.isConfigured()) {
