@@ -9,6 +9,7 @@ import diagnosisRoutes from './routes/diagnosisRoutes.js';
 import quoteRoutes from './routes/quoteRoutes.js';
 import repairRoutes from './routes/repairRoutes.js';
 import assistantRoutes from './routes/assistantRoutes.js';
+import assessmentRoutes from './routes/assessmentRoutes.js';
 
 // Middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -53,6 +54,7 @@ app.use('/api/diagnosis', diagnosisRoutes);
 app.use('/api/quotes', quoteRoutes);
 app.use('/api/repair', repairRoutes);
 app.use('/api/assistant', assistantRoutes);
+app.use('/api/assessments', assessmentRoutes);
 
 // Root fallback
 app.get('/', (req, res) => {

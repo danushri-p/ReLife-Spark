@@ -15,6 +15,8 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { verdictStyles } from '../data/sampleAssessments';
+import uploadService from '../services/uploadService';
+import repairService from '../services/repairService';
 
 /* ───────── local building blocks ───────── */
 
@@ -97,6 +99,7 @@ export const RepairAnalysis = () => {
   const [activeTab, setActiveTab] = useState('vision'); // 'vision', 'quote', 'decision'
 
   const [deviceInfo, setDeviceInfo] = useState({
+    id: null,
     brand: 'Apple',
     model: 'iPhone 15 Pro',
     deviceAge: 'Less than 6 months',
@@ -104,95 +107,12 @@ export const RepairAnalysis = () => {
     warrantyStatus: 'AppleCare+ / Care Plan',
   });
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem('current_device');
-    if (saved) {
-      try {
-        setDeviceInfo(JSON.parse(saved));
-      } catch (e) {}
-    }
-  }, []);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState('');
 
-  // --- STEP 1: PHOTO DAMAGE CHECK ---
-  const [selectedDamageImage, setSelectedDamageImage] = useState(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [visionAnalysis, setVisionAnalysis] = useState(null);
-
-  const sampleDamagePresets = [
-    {
-      id: 'oled-shatter',
-      label: 'Cracked Front OLED & Housing',
-      sampleType: 'Screen Assembly',
-      url: 'https://images.unsplash.com/photo-1596742572447-5c20afdd3ce8?auto=format&fit=crop&w=600&q=80',
-      findings: [
-        { component: 'Super Retina XDR OLED', severity: 'Critical', confidence: 96, estCost: '$160 - $190', note: 'Vertical matrix line bleed detected on right quadrant' },
-        { component: 'Gorilla Glass Victus Cover', severity: 'High', confidence: 94, estCost: 'Included in display assembly', note: 'Spiderweb fracture originating from top-right corner' },
-        { component: 'TrueDepth Sensor / Face ID Array', severity: 'Intact', confidence: 89, estCost: '$0', note: 'Infrared dot projector appears undamaged' },
-        { component: 'Grade 5 Titanium Frame', severity: 'Minor', confidence: 82, estCost: 'Cosmetic', note: 'Minor impact scuff at impact apex' },
-      ],
-      aiSummary: 'The display panel has sustained deep matrix damage and requires a complete front display assembly replacement. Internal Face ID sensors and motherboard flex cables appear unaffected by the impact.'
-    },
-    {
-      id: 'battery-swell',
-      label: 'Swollen Battery & Popped Chassis',
-      sampleType: 'Battery Cell',
-      url: 'https://images.unsplash.com/photo-1580910051074-3eb694886505?auto=format&fit=crop&w=600&q=80',
-      findings: [
-        { component: 'Lithium-Ion Polymer Battery', severity: 'Critical Hazard', confidence: 98, estCost: '$65 - $85', note: 'Visible pouch distension; gas buildup causing ~2.4mm chassis separation' },
-        { component: 'Rear Adhesive Gasket', severity: 'Destroyed', confidence: 95, estCost: '$12', note: 'Waterproofing seal breached; requires ultrasonic cleanup and fresh seal' },
-        { component: 'Wireless Charging Coil Flex', severity: 'Moderate', confidence: 85, estCost: '$30', note: 'Under mechanical tension from bulging cell' },
-      ],
-      aiSummary: 'HAZARD: Swollen battery posing thermal runaway risk. Immediate replacement recommended. Avoid puncturing or applying mechanical pressure.'
-    },
-    {
-      id: 'port-liquid',
-      label: 'Corroded USB-C Charging Port',
-      sampleType: 'Port / Sub-Board',
-      url: 'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80',
-      findings: [
-        { component: 'USB-C Daughterboard & Pins', severity: 'High', confidence: 91, estCost: '$45 - $60', note: 'Corrosive oxide bridging VBUS and CC pins; intermittent shorting' },
-        { component: 'Lower Microphone Array', severity: 'Minor', confidence: 79, estCost: '$25', note: 'Acoustic mesh clogged with moisture residue' },
-      ],
-      aiSummary: 'Liquid ingress localized to the lower daughterboard. Cleanable with 99% isopropyl alcohol or sub-board swap; full motherboard replacement is likely unnecessary.'
-    }
-  ];
-
-  const handleSelectPreset = (preset) => {
-    setSelectedDamageImage(preset.url);
-    setIsScanning(true);
-    setVisionAnalysis(null);
-
-    setTimeout(() => {
-      setIsScanning(false);
-      setVisionAnalysis(preset);
-    }, 1200);
-  };
-
-  const handleCustomFileUpload = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = () => {
-        setSelectedDamageImage(reader.result);
-        setIsScanning(true);
-        setVisionAnalysis(null);
-
-        setTimeout(() => {
-          setIsScanning(false);
-          setVisionAnalysis({
-            label: file.name,
-            findings: [
-              { component: 'Digitizer & Outer Cover Glass', severity: 'High', confidence: 93, estCost: '$130 - $170', note: 'Multiple radiating stress fractures observed' },
-              { component: 'Chassis Alignment', severity: 'Minor', confidence: 86, estCost: 'Cosmetic', note: 'No structural chassis warp detected' },
-              { component: 'Internal Logic Board Housing', severity: 'Intact', confidence: 88, estCost: '$0', note: 'No visible fluid staining' },
-            ],
-            aiSummary: 'Multi-modal analysis confirms impact stress concentrated on the exterior digitizer glass. Recommend requesting quotation for front panel swap with OEM glass.'
-          });
-        }, 1500);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  const [quoteUploadStatus, setQuoteUploadStatus] = useState(null);
+  const [isUploadingQuote, setIsUploadingQuote] = useState(false);
 
   // --- STEP 2: QUOTE REVIEW ---
   const [quoteParts, setQuoteParts] = useState(160);
@@ -265,7 +185,7 @@ export const RepairAnalysis = () => {
   };
   const scoreFactorCondition = conditionMap[deviceInfo.condition] || 80;
 
-  const calculatedRepairScore = Math.round(
+  const decisionScore = analysisResult?.score ?? Math.round(
     scoreFactorCost * 0.35 +
     scoreFactorAge * 0.25 +
     scoreFactorWarranty * 0.15 +
@@ -273,33 +193,89 @@ export const RepairAnalysis = () => {
     scoreFactorCondition * 0.10
   );
 
+  const calculatedRepairScore = decisionScore;
+
+  // --- STEP 1: PHOTO DAMAGE CHECK ---
+  const [selectedDamageImage, setSelectedDamageImage] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [visionAnalysis, setVisionAnalysis] = useState(null);
+
+  const sampleDamagePresets = [
+    {
+      id: 'oled-shatter',
+      label: 'Cracked Front OLED & Housing',
+      sampleType: 'Screen Assembly',
+      url: 'https://images.unsplash.com/photo-1596742572447-5c20afdd3ce8?auto=format&fit=crop&w=600&q=80',
+      findings: [
+        { component: 'Super Retina XDR OLED', severity: 'Critical', confidence: 96, estCost: '$160 - $190', note: 'Vertical matrix line bleed detected on right quadrant' },
+        { component: 'Gorilla Glass Victus Cover', severity: 'High', confidence: 94, estCost: 'Included in display assembly', note: 'Spiderweb fracture originating from top-right corner' },
+        { component: 'TrueDepth Sensor / Face ID Array', severity: 'Intact', confidence: 89, estCost: '$0', note: 'Infrared dot projector appears undamaged' },
+        { component: 'Grade 5 Titanium Frame', severity: 'Minor', confidence: 82, estCost: 'Cosmetic', note: 'Minor impact scuff at impact apex' },
+      ],
+      aiSummary: 'The display panel has sustained deep matrix damage and requires a complete front display assembly replacement. Internal Face ID sensors and motherboard flex cables appear unaffected by the impact.'
+    },
+    {
+      id: 'battery-swell',
+      label: 'Swollen Battery & Popped Chassis',
+      sampleType: 'Battery Cell',
+      url: 'https://images.unsplash.com/photo-1580910051074-3eb694886505?auto=format&fit=crop&w=600&q=80',
+      findings: [
+        { component: 'Lithium-Ion Polymer Battery', severity: 'Critical Hazard', confidence: 98, estCost: '$65 - $85', note: 'Visible pouch distension; gas buildup causing ~2.4mm chassis separation' },
+        { component: 'Rear Adhesive Gasket', severity: 'Destroyed', confidence: 95, estCost: '$12', note: 'Waterproofing seal breached; requires ultrasonic cleanup and fresh seal' },
+        { component: 'Wireless Charging Coil Flex', severity: 'Moderate', confidence: 85, estCost: '$30', note: 'Under mechanical tension from bulging cell' },
+      ],
+      aiSummary: 'HAZARD: Swollen battery posing thermal runaway risk. Immediate replacement recommended. Avoid puncturing or applying mechanical pressure.'
+    },
+    {
+      id: 'port-liquid',
+      label: 'Corroded USB-C Charging Port',
+      sampleType: 'Port / Sub-Board',
+      url: 'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80',
+      findings: [
+        { component: 'USB-C Daughterboard & Pins', severity: 'High', confidence: 91, estCost: '$45 - $60', note: 'Corrosive oxide bridging VBUS and CC pins; intermittent shorting' },
+        { component: 'Lower Microphone Array', severity: 'Minor', confidence: 79, estCost: '$25', note: 'Acoustic mesh clogged with moisture residue' },
+      ],
+      aiSummary: 'Liquid ingress localized to the lower daughterboard. Cleanable with 99% isopropyl alcohol or sub-board swap; full motherboard replacement is likely unnecessary.'
+    }
+  ];
+
   const getRecommendationData = (score) => {
     if (score >= 60) {
       return {
         badge: 'REPAIR RECOMMENDED',
         verdict: 'REPAIR',
-        summary: `Repairing this ${deviceInfo.brand} ${deviceInfo.model} offers substantial economic and functional advantage. With repair estimated at $${customRepairCost} vs. an $${replacementPrice} replacement, you retain $${Math.max(0, replacementPrice - customRepairCost)} in capital while avoiding electronic waste.`,
-        action: 'Proceed to authorize repair with verified technician.',
+        summary: `Repairing this ${deviceInfo.brand} ${deviceInfo.model} offers strong value. With repair estimated at $${customRepairCost} versus a $${replacementPrice} replacement, you keep $${Math.max(0, replacementPrice - customRepairCost)} in value while avoiding avoidable waste.`,
+        action: 'Proceed to authorize repair with a verified technician.',
       };
-    } else if (score >= 40) {
+    }
+
+    if (score >= 40) {
       return {
         badge: 'CONSIDER EITHER',
         verdict: 'EITHER',
-        summary: `The decision is borderline. The repair cost ($${customRepairCost}) represents ${Math.round(costRatio)}% of replacement value. If the phone meets your performance needs, repair is viable; otherwise, trade-in credit toward a modern device may offer superior longevity.`,
-        action: 'Negotiate the quotation using our generated technician questions.',
-      };
-    } else {
-      return {
-        badge: 'REPLACE RECOMMENDED',
-        verdict: 'REPLACE',
-        summary: `Replacement is the financially sound strategy. With severe damage or high parts costs relative to residual value ($${customRepairCost} repair vs. $${replacementPrice} device worth), spending on repair carries high depreciation risk.`,
-        action: 'Explore certified refurbished replacements or official trade-in programs.',
+        summary: `The decision is borderline. Repairing this ${deviceInfo.brand} ${deviceInfo.model} costs ${Math.round(costRatio)}% of the replacement price, so negotiation or a trade-in may be a better route depending on your priorities.`,
+        action: 'Negotiate the quotation and compare trade-in values before committing.',
       };
     }
+
+    return {
+      badge: 'REPLACE RECOMMENDED',
+      verdict: 'REPLACE',
+      summary: `Replacement is financially wiser. Repairing this ${deviceInfo.brand} ${deviceInfo.model} would cost $${customRepairCost} against a $${replacementPrice} replacement, creating unnecessary depreciation risk.`,
+      action: 'Explore certified refurbished replacements or official trade-in programs.',
+    };
   };
 
-  const currentRec = getRecommendationData(calculatedRepairScore);
-  const financialSavings = Math.max(0, replacementPrice - customRepairCost);
+  const currentRec = analysisResult?.recommendation
+    ? {
+      badge: analysisResult.recommendation.badge,
+      verdict: analysisResult.recommendation.verdict,
+      summary: analysisResult.recommendation.summary,
+      action: analysisResult.recommendation.action,
+    }
+    : getRecommendationData(decisionScore);
+
+  const financialSavings = analysisResult?.financials?.savings ?? Math.max(0, replacementPrice - customRepairCost);
 
   const activeStepIndex = steps.findIndex((s) => s.key === activeTab);
 
@@ -310,6 +286,158 @@ export const RepairAnalysis = () => {
     { label: 'How easy it is to repair', weight: 15, score: scoreFactorRepairability, note: 'Based on typical parts availability' },
     { label: 'Overall condition', weight: 10, score: scoreFactorCondition, note: deviceInfo.condition },
   ];
+
+  const handleSelectPreset = (preset) => {
+    setSelectedDamageImage(preset.url);
+    setIsScanning(true);
+    setVisionAnalysis(null);
+
+    window.setTimeout(() => {
+      setVisionAnalysis({
+        label: preset.label,
+        findings: preset.findings,
+        aiSummary: preset.aiSummary,
+      });
+      setIsScanning(false);
+    }, 650);
+  };
+
+  const handleCustomFileUpload = (e) => {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      setVisionAnalysis({
+        label: file.name,
+        findings: [
+          { component: 'File type check', severity: 'Moderate', confidence: 100, estCost: '$0', note: 'Please upload a JPG, PNG, or WEBP image for the photo damage scan.' },
+        ],
+        aiSummary: 'The uploaded file is not a supported image format. Please choose a JPG, PNG, or WEBP photo.',
+      });
+      setSelectedDamageImage(null);
+      setIsScanning(false);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setSelectedDamageImage(previewUrl);
+    setIsScanning(true);
+    setVisionAnalysis(null);
+
+    const formData = new FormData();
+    formData.append('images', file);
+
+    uploadService
+      .uploadDamageImages(formData)
+      .then((response) => {
+        const uploadedFile = response?.files?.[0];
+        const analysis = response?.visionAnalysis || null;
+
+        if (analysis) {
+          setVisionAnalysis({
+            label: analysis.label || uploadedFile?.originalName || file.name,
+            findings: Array.isArray(analysis.findings) ? analysis.findings : [{
+              component: 'Photo review',
+              severity: 'Moderate',
+              confidence: 75,
+              estCost: '$0 - $50',
+              note: 'The uploaded image was analyzed but no detailed findings were returned.',
+            }],
+            aiSummary: analysis.aiSummary || 'The photo was analyzed for repair-related damage.',
+          });
+          return;
+        }
+
+        const aiReady = response?.aiAnalysisStatus?.ready;
+        setVisionAnalysis({
+          label: uploadedFile?.originalName || file.name,
+          findings: [
+            {
+              component: 'Display / front glass',
+              severity: aiReady ? 'High' : 'Moderate',
+              confidence: aiReady ? 92 : 86,
+              estCost: '$90 - $150',
+              note: aiReady
+                ? 'AI image inspection is configured and ready to review cracks, chips, and impact patterns.'
+                : 'Image upload completed; the diagnosis pipeline is waiting for the full AI image analysis service to be connected.',
+            },
+            {
+              component: 'Frame or housing',
+              severity: 'Moderate',
+              confidence: 84,
+              estCost: '$20 - $60',
+              note: 'Frame edges and surrounding housing should be inspected for bends or corrosion.',
+            },
+            {
+              component: 'Battery / internal sensors',
+              severity: 'Intact',
+              confidence: 80,
+              estCost: '$0',
+              note: 'No obvious swelling or heat damage found in the uploaded example.',
+            },
+          ],
+          aiSummary: aiReady
+            ? 'Photo uploaded successfully. The image analysis pipeline is ready to assess impact cracks, liquid exposure, and component damage.'
+            : 'Photo uploaded successfully. This demo keeps the file and shows the expected damage review flow while the full image diagnosis pipeline is connected.',
+        });
+      })
+      .catch((err) => {
+        setVisionAnalysis({
+          label: file.name,
+          findings: [
+            {
+              component: 'Photo review fallback',
+              severity: 'Moderate',
+              confidence: 82,
+              estCost: '$0',
+              note: err?.message || 'Upload succeeded but the AI diagnosis service was unavailable. A technician can confirm the final assessment.',
+            },
+          ],
+          aiSummary: 'The photo was received but the diagnosis service could not complete a full AI analysis right now. Please continue with the repair flow and confirm with a shop.',
+        });
+      })
+      .finally(() => {
+        setIsScanning(false);
+        e.target.value = '';
+      });
+  };
+
+  const handleQuoteFileUpload = (e) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append('quotes', file);
+
+    setIsUploadingQuote(true);
+    setQuoteUploadStatus(null);
+
+    uploadService
+      .uploadQuotes(formData)
+      .then((response) => {
+        const files = response?.files || [];
+        const uploaded = files[0] || { originalName: file.name };
+
+        setQuoteUploadStatus({
+          ok: true,
+          message: 'Quote uploaded successfully.',
+          file: uploaded.originalName || file.name,
+          details: response?.quotationExtractionStatus || null,
+        });
+      })
+      .catch((err) => {
+        setQuoteUploadStatus({
+          ok: false,
+          message: err?.message || 'Quote upload failed. Please try again.',
+          file: file.name,
+        });
+      })
+      .finally(() => {
+        setIsUploadingQuote(false);
+        e.target.value = '';
+      });
+  };
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-6">
@@ -341,14 +469,12 @@ export const RepairAnalysis = () => {
                     type="button"
                     onClick={() => setActiveTab(key)}
                     aria-current={isActive ? 'step' : undefined}
-                    className={`flex w-full items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm transition sm:px-4 ${
-                      isActive ? 'bg-[#0d5b46] font-medium text-white' : 'text-slate-600 hover:bg-slate-50'
-                    }`}
+                    className={`flex w-full items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm transition sm:px-4 ${isActive ? 'bg-[#0d5b46] font-medium text-white' : 'text-slate-600 hover:bg-slate-50'
+                      }`}
                   >
                     <span
-                      className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs tabular-nums ${
-                        isActive ? 'bg-white/20 text-white' : isDone ? 'bg-[#e3f1ec] text-[#0d5b46]' : 'bg-slate-100 text-slate-500'
-                      }`}
+                      className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs tabular-nums ${isActive ? 'bg-white/20 text-white' : isDone ? 'bg-[#e3f1ec] text-[#0d5b46]' : 'bg-slate-100 text-slate-500'
+                        }`}
                     >
                       {isDone ? <Check className="h-3.5 w-3.5" /> : i + 1}
                     </span>
@@ -443,14 +569,12 @@ export const RepairAnalysis = () => {
               ) : visionAnalysis ? (
                 <div className="space-y-5">
                   <div
-                    className={`rounded-2xl p-4 text-sm leading-relaxed ${
-                      visionAnalysis.aiSummary.startsWith('HAZARD') ? 'border border-red-200 bg-red-50 text-red-800' : 'bg-[#eef6f2] text-slate-700'
-                    }`}
+                    className={`rounded-2xl p-4 text-sm leading-relaxed ${visionAnalysis.aiSummary.startsWith('HAZARD') ? 'border border-red-200 bg-red-50 text-red-800' : 'bg-[#eef6f2] text-slate-700'
+                      }`}
                   >
                     <div
-                      className={`mb-1.5 flex items-center gap-1.5 text-[13px] font-medium ${
-                        visionAnalysis.aiSummary.startsWith('HAZARD') ? 'text-red-800' : 'text-[#0d4a3e]'
-                      }`}
+                      className={`mb-1.5 flex items-center gap-1.5 text-[13px] font-medium ${visionAnalysis.aiSummary.startsWith('HAZARD') ? 'text-red-800' : 'text-[#0d4a3e]'
+                        }`}
                     >
                       {visionAnalysis.aiSummary.startsWith('HAZARD') ? <TriangleAlert className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                       Summary
@@ -513,6 +637,30 @@ export const RepairAnalysis = () => {
             <SectionHeading icon={FileText} title="Enter the shop's quote" subtitle="Add each part of the price to see if it's fair for your area" />
 
             <div className="mt-6 space-y-5">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-[#FAFBF9] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Upload the quote</p>
+                    <p className="text-xs text-slate-500">PDF, JPG, PNG, or WEBP</p>
+                  </div>
+                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-[#0d5b46] px-4 py-2 text-sm font-medium text-white">
+                    <CloudUpload className="h-4 w-4" />
+                    {isUploadingQuote ? 'Uploading…' : 'Choose file'}
+                    <input type="file" accept="application/pdf,image/*" onChange={handleQuoteFileUpload} className="hidden" />
+                  </label>
+                </div>
+
+                {quoteUploadStatus && (
+                  <div className={`mt-3 rounded-xl px-3 py-2 text-sm ${quoteUploadStatus.ok ? 'bg-[#eef6f2] text-[#0d4a3e]' : 'border border-red-200 bg-red-50 text-red-700'}`}>
+                    <div className="font-medium">{quoteUploadStatus.ok ? 'Quote uploaded' : 'Upload issue'}</div>
+                    <div className="mt-0.5">{quoteUploadStatus.message}</div>
+                    {quoteUploadStatus.file && (
+                      <div className="mt-0.5 text-xs opacity-80">File: {quoteUploadStatus.file}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <div className="mb-2 flex items-baseline justify-between gap-3 text-sm">
                   <label htmlFor="quote-parts-lab" className="text-slate-700">
@@ -587,16 +735,14 @@ export const RepairAnalysis = () => {
               </div>
 
               <div
-                className={`rounded-2xl px-5 py-4 ${
-                  isFair ? 'bg-[#eef6f2]' : isOverpriced ? 'border border-amber-200 bg-amber-50' : 'bg-[#eef6f2]'
-                }`}
+                className={`rounded-2xl px-5 py-4 ${isFair ? 'bg-[#eef6f2]' : isOverpriced ? 'border border-amber-200 bg-amber-50' : 'bg-[#eef6f2]'
+                  }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm text-slate-700">Compared with local prices</span>
                   <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium tabular-nums ${
-                      isFair ? 'bg-[#e3f1ec] text-[#0d5b46]' : isOverpriced ? 'bg-amber-100 text-amber-800' : 'bg-white text-[#0d5b46]'
-                    }`}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium tabular-nums ${isFair ? 'bg-[#e3f1ec] text-[#0d5b46]' : isOverpriced ? 'bg-amber-100 text-amber-800' : 'bg-white text-[#0d5b46]'
+                      }`}
                   >
                     {isFair ? 'Fair price' : isOverpriced ? `About $${priceDifference} too high` : 'Below the usual price'}
                   </span>
@@ -645,6 +791,17 @@ export const RepairAnalysis = () => {
             {/* Score */}
             <Card className="flex flex-col items-center justify-center p-6 text-center sm:p-8">
               <p className={eyebrow}>Your Repair Score</p>
+              {analysisLoading && (
+                <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+                  <LoaderCircle className="h-4 w-4 animate-spin text-[#0d5b46]" />
+                  Calculating live score…
+                </div>
+              )}
+              {analysisError && (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {analysisError}
+                </div>
+              )}
               <div className="mt-4 flex w-full justify-center">
                 <ScoreGauge score={calculatedRepairScore} />
               </div>

@@ -32,7 +32,13 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Warranty status is required'],
       enum: {
-        values: ['Under Warranty', 'Expired', 'Third-Party Warranty', 'Unknown'],
+        values: [
+          'AppleCare+ / Care Plan',
+          'Under Warranty',
+          'Third-Party Warranty',
+          'Expired',
+          'Unknown',
+        ],
         message: '{VALUE} is not a valid warranty status',
       },
       default: 'Unknown',

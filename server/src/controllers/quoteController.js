@@ -18,6 +18,7 @@ export const uploadQuoteDocument = async (req, res, next) => {
       filename: file.filename,
       size: `${(file.size / 1024).toFixed(1)} KB`,
       mimetype: file.mimetype,
+      path: file.path,
     }));
 
     res.status(200).json({
@@ -26,8 +27,8 @@ export const uploadQuoteDocument = async (req, res, next) => {
       filesReceived: uploadedFiles.length,
       files: uploadedFiles,
       quotationExtractionStatus: {
-        status: 'PENDING_PIPELINE',
-        note: 'Automated quotation item extraction via Gemini Vision / PDF parsing will be implemented in Milestone 2. Please review or manually verify values.',
+        status: 'READY_FOR_EXTRACTION',
+        note: 'Quotation files have been accepted and are ready for parsing or human verification.',
       },
     });
   } catch (error) {
