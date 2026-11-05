@@ -9,9 +9,7 @@ export const createDevice = async (req, res, next) => {
   try {
     const { brand, model, deviceAge, condition, warrantyStatus, problemDescription } = req.body;
 
-    // Check if database is currently connected
     if (mongoose.connection.readyState !== 1) {
-      // Return a clean structured response explaining DB status
       return res.status(503).json({
         success: false,
         message: 'Database is not connected. Please verify your MONGODB_URI configuration in server/.env.',
@@ -31,6 +29,8 @@ export const createDevice = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Device information recorded successfully.',
+      device: newDevice,
+      _id: newDevice._id,
       data: newDevice,
     });
   } catch (error) {
@@ -71,6 +71,7 @@ export const getDeviceById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
+      device,
       data: device,
     });
   } catch (error) {

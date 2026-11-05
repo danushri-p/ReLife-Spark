@@ -31,7 +31,7 @@ export const validateDeviceInput = [
     .trim()
     .notEmpty()
     .withMessage('Warranty status is required')
-    .isIn(['Under Warranty', 'Expired', 'Third-Party Warranty', 'Unknown'])
+    .isIn(['AppleCare+ / Care Plan', 'Under Warranty', 'Third-Party Warranty', 'Expired', 'Unknown'])
     .withMessage('Invalid warranty status selected'),
 
   body('problemDescription')

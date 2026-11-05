@@ -28,18 +28,29 @@ const decodeJwt = (token) => {
   return JSON.parse(json);
 };
 
+const createDemoUser = () => ({
+  id: 'demo',
+  email: 'demo@relife-spark.app',
+  name: 'Demo User',
+  picture: null,
+  demo: true,
+  signedInAt: Date.now(),
+});
+
 const readStoredUser = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) {
+      return GOOGLE_CLIENT_ID ? null : createDemoUser();
+    }
     const user = JSON.parse(raw);
     if (!user?.email || Date.now() - user.signedInAt > SESSION_MS) {
       localStorage.removeItem(STORAGE_KEY);
-      return null;
+      return GOOGLE_CLIENT_ID ? null : createDemoUser();
     }
     return user;
   } catch {
-    return null;
+    return GOOGLE_CLIENT_ID ? null : createDemoUser();
   }
 };
 
@@ -77,14 +88,7 @@ export const AuthProvider = ({ children }) => {
 
   /** Signs in a local demo account so the app can be explored before Google is connected. */
   const signInDemo = useCallback(() => {
-    const next = {
-      id: 'demo',
-      email: 'demo@relife-spark.app',
-      name: 'Demo User',
-      picture: null,
-      demo: true,
-      signedInAt: Date.now(),
-    };
+    const next = createDemoUser();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch {
@@ -101,6 +105,12 @@ export const AuthProvider = ({ children }) => {
       /* ignore */
     }
     window.google?.accounts?.id?.disableAutoSelect();
+    if (!GOOGLE_CLIENT_ID) {
+      const next = createDemoUser();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setUser(next);
+      return;
+    }
     setUser(null);
   }, []);
 

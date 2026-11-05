@@ -30,6 +30,11 @@ export const Login = () => {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState(false);
 
+  const handleDemoSignIn = () => {
+    signInDemo();
+    navigate(redirectTo, { replace: true });
+  };
+
   if (!loading && user && !submitting) return <Navigate to={redirectTo} replace />;
 
   const handleCredential = (credential) => {
@@ -92,10 +97,7 @@ export const Login = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    signInDemo();
-                    navigate(redirectTo, { replace: true });
-                  }}
+                  onClick={handleDemoSignIn}
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#0d5b46] text-[15px] font-medium text-white transition hover:bg-[#0a4a39]"
                 >
                   Explore with a demo account <ArrowRight className="h-4 w-4" />
