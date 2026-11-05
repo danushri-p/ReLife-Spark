@@ -54,9 +54,8 @@ const deviceSchema = new mongoose.Schema(
     },
     problemDescription: {
       type: String,
-      required: [true, 'Problem description is required'],
+      default: '',
       trim: true,
-      minlength: [10, 'Problem description must be at least 10 characters'],
       maxlength: [2000, 'Problem description cannot exceed 2000 characters'],
     },
     metadata: {

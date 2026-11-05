@@ -1,17 +1,19 @@
 import geminiService from '../services/geminiService.js';
 
 /**
- * Handle upload of device damage photographs and analyse them with Gemini.
- * POST /api/diagnosis/upload  (multipart: images[], optional deviceType, brand, model, problemDescription)
+ * Diagnose a device from photos, a written description of the problem, or both.
+ * A description covers faults a photo can't show (software, charging, battery, sound…).
+ * POST /api/diagnosis/upload  (multipart: images[] optional, deviceType, brand, model, problemDescription)
  */
 export const uploadDamagePhotos = async (req, res, next) => {
   try {
     const files = req.files || [];
+    const described = String(req.body?.problemDescription || '').trim();
 
-    if (!files || files.length === 0) {
+    if (files.length === 0 && described.length < 5) {
       return res.status(400).json({
         success: false,
-        message: 'No damage images were provided. Please attach at least one photograph.',
+        message: 'Add a photo or describe the problem (for example: "won’t charge past 20%").',
       });
     }
 
@@ -30,7 +32,7 @@ export const uploadDamagePhotos = async (req, res, next) => {
         deviceType: deviceType || undefined,
         brand: brand || undefined,
         model: model || undefined,
-        reportedProblem: problemDescription || undefined,
+        reportedProblem: problemDescription ? String(problemDescription).slice(0, 2000) : undefined,
         fileCount: uploadedDetails.length,
       }
     );
@@ -39,7 +41,7 @@ export const uploadDamagePhotos = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: ready ? 'Damage photographs uploaded and analyzed.' : 'Damage photographs uploaded, but AI analysis did not complete.',
+      message: ready ? 'Problem analyzed.' : 'AI analysis did not complete.',
       filesReceived: uploadedDetails.length,
       files: uploadedDetails.map(({ path: _path, ...rest }) => rest),
       aiAnalysisStatus: {

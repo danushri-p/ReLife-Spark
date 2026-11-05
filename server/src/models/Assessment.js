@@ -44,6 +44,12 @@ const assessmentSchema = new mongoose.Schema(
             default: 'Unknown',
             trim: true,
         },
+        /** hardware → diagnosed from photos, software → from the description, unsure → both. */
+        problemType: {
+            type: String,
+            enum: ['hardware', 'software', 'unsure'],
+            default: 'unsure',
+        },
         problemDescription: {
             type: String,
             default: '',

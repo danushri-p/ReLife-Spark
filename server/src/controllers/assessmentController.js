@@ -3,6 +3,8 @@ import Assessment from '../models/Assessment.js';
 import { computeDecision } from './repairController.js';
 import { normalizeDeviceType } from '../config/deviceTypes.js';
 
+const PROBLEM_TYPES = ['hardware', 'software', 'unsure'];
+
 const dbUnavailable = (res) =>
     res.status(503).json({
         success: false,
@@ -53,6 +55,7 @@ export const createAssessment = async (req, res, next) => {
             condition: condition || 'Good',
             warrantyStatus: warrantyStatus || 'Unknown',
             problemDescription: problemDescription || '',
+            problemType: PROBLEM_TYPES.includes(req.body.problemType) ? req.body.problemType : 'unsure',
             status: 'IN_PROGRESS',
             metadata: metadata || {},
         });
@@ -129,6 +132,8 @@ export const updateAssessment = async (req, res, next) => {
 
         const body = req.body || {};
         if (body.vision !== undefined) assessment.vision = body.vision;
+        if (typeof body.problemDescription === 'string') assessment.problemDescription = body.problemDescription.trim().slice(0, 2000);
+        if (PROBLEM_TYPES.includes(body.problemType)) assessment.problemType = body.problemType;
         if (body.estimate !== undefined) assessment.estimate = body.estimate;
         if (body.quote !== undefined) {
             assessment.quote = cleanQuote(body.quote);
