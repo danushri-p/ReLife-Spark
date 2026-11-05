@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, SearchX, LoaderCircle, TriangleAlert, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import assessmentService, { CURRENT_CASE_KEY } from '../../services/assessmentService';
-import { verdictStyles, formatINR, formatDate, deviceName, shortIssue, caseProgress } from '../../utils/format';
+import { verdictStyles, formatINR, formatDate, deviceName, shortIssue, caseProgress, caseRef } from '../../utils/format';
 import { DeviceIcon } from '../../data/deviceTypes';
 
 const filters = [
@@ -39,7 +39,7 @@ export const History = ({ embedded = false }) => {
   }, [user?.id]);
 
   const remove = async (a) => {
-    if (!window.confirm(`Delete the case for your ${deviceName(a)}? This can't be undone.`)) return;
+    if (!window.confirm(`Delete case #${caseRef(a._id)} (${deviceName(a)})? This can't be undone.`)) return;
     setDeleting(a._id);
     try {
       await assessmentService.remove(a._id);
@@ -123,7 +123,10 @@ export const History = ({ embedded = false }) => {
                       <DeviceIcon type={a.deviceType} className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-[15px] font-medium text-slate-900 group-hover:text-[#0d5b46] group-hover:underline">{deviceName(a)}</p>
+                      <p className="flex min-w-0 items-baseline gap-2">
+                        <span className="truncate text-[15px] font-medium text-slate-900 group-hover:text-[#0d5b46] group-hover:underline">{deviceName(a)}</span>
+                        <span className="flex-shrink-0 font-mono text-[11px] tracking-wider text-slate-400">#{caseRef(a._id)}</span>
+                      </p>
                       <p className="truncate text-sm text-slate-500">
                         {shortIssue(a.problemDescription)} · {formatDate(a.createdAt)}
                         {!done && <span className="ml-1.5 text-amber-700">· {caseProgress(a).label}</span>}
@@ -144,7 +147,7 @@ export const History = ({ embedded = false }) => {
                     type="button"
                     onClick={() => remove(a)}
                     disabled={deleting === a._id}
-                    aria-label={`Delete case for ${deviceName(a)}`}
+                    aria-label={`Delete case #${caseRef(a._id)} for ${deviceName(a)}`}
                     className="justify-self-end rounded-full p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
                   >
                     {deleting === a._id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Search, Plus, LogOut, House, ChevronDown, X, CornerDownLeft, UserRound } from 'lucide-react';
+import { Search, Plus, LogOut, ChevronDown, X, CornerDownLeft, UserRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const appNav = [
@@ -87,14 +87,6 @@ const AccountMenu = ({ user, onSignOut }) => {
             className="mt-1 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-[#141414] hover:bg-[#F4F1EA]"
           >
             <UserRound className="h-4 w-4" /> Profile &amp; history
-          </Link>
-          <Link
-            to="/"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-[#141414] hover:bg-[#F4F1EA]"
-          >
-            <House className="h-4 w-4" /> Back to website
           </Link>
           <button
             type="button"

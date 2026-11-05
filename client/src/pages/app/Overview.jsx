@@ -45,15 +45,25 @@ export const Overview = () => {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([assessmentService.list(user?.id, { limit: 50 }), assessmentService.stats(user?.id)])
-      .then(([list, stats]) => {
-        if (!cancelled) setData({ loading: false, error: '', cases: list.assessments || [], stats: stats.personal });
-      })
-      .catch((err) => {
-        if (!cancelled) setData({ loading: false, error: err?.message || 'Could not load your cases.', cases: [], stats: null });
-      });
+    const load = () =>
+      Promise.all([assessmentService.list(user?.id, { limit: 50 }), assessmentService.stats(user?.id)])
+        .then(([list, stats]) => {
+          if (!cancelled) setData({ loading: false, error: '', cases: list.assessments || [], stats: stats.personal });
+        })
+        .catch((err) => {
+          // Keep what is already on screen if a background refresh fails.
+          if (!cancelled) setData((d) => ({ ...d, loading: false, error: err?.message || 'Could not load your cases.' }));
+        });
+
+    load();
+    // Refresh when the user comes back to this tab, so work done elsewhere shows up.
+    const onVisible = () => document.visibilityState === 'visible' && load();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
     };
   }, [user?.id]);
 
@@ -67,7 +77,8 @@ export const Overview = () => {
   }`;
 
   const { cases, stats } = data;
-  const active = cases.find((a) => a.status === 'IN_PROGRESS') || cases[0] || null;
+  // The case worked on most recently (the list comes back newest-updated first).
+  const active = cases[0] || null;
   const progress = active ? caseProgress(active) : null;
   const caseLink = active ? `/analysis?id=${active._id}` : '/device';
 
