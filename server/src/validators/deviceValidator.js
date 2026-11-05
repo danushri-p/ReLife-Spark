@@ -42,11 +42,10 @@ export const validateDeviceInput = [
     .withMessage('Invalid warranty status selected'),
 
   body('problemDescription')
+    .optional({ values: 'falsy' })
     .trim()
-    .notEmpty()
-    .withMessage('Problem description is required')
-    .isLength({ min: 10, max: 2000 })
-    .withMessage('Problem description must be between 10 and 2000 characters'),
+    .isLength({ max: 2000 })
+    .withMessage('Problem description cannot exceed 2000 characters'),
 
   (req, res, next) => {
     const errors = validationResult(req);

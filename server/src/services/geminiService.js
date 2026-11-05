@@ -137,26 +137,36 @@ class GeminiService {
     }
 
     const paths = Array.isArray(imagePaths) ? imagePaths.filter(Boolean) : [];
-    if (!paths.length) {
+    const described = String(deviceContext?.reportedProblem || '').trim();
+    if (!paths.length && !described) {
       return {
         configured: true,
-        status: 'NO_IMAGES',
-        message: 'No image files were available for diagnosis.',
+        status: 'NO_INPUT',
+        message: 'Add a photo or describe the problem so it can be diagnosed.',
         imageCount: 0,
       };
     }
 
+    // What the model has to work with: photos, the user's own description, or both.
+    const task = paths.length
+      ? `Analyze the provided device photo(s) and identify likely damage, parts affected, repair priority, and rough estimated cost range.
+      ${described ? `The user also describes the problem as: "${described}". Use this for faults a photo cannot show (software, charging, battery, sound, connectivity) and combine it with what you see.` : ''}`
+      : `There is no photo. The user describes the problem as: "${described}".
+      Diagnose from this description: list the most likely causes and the parts or fixes involved (e.g. charger/cable, charging port, battery,
+      software reinstall/reset, storage, logic board). Mention when a cheap fix (new cable, software reset) should be tried first.
+      Use lower confidence values because nothing was inspected, and put "₹0 - ₹500" style costs for software-only fixes.`;
+
     const prompt = `
       You are a consumer-electronics repair diagnostic assistant working for customers in India.
       The device is a ${deviceContext?.deviceType || 'Smartphone'}.
-      Analyze the provided device photo(s) and identify likely damage, parts affected, repair priority, and rough estimated cost range.
+      ${task}
       Focus on practical professional repair assessment for this kind of device, not generic advice.
 
       Device context: ${JSON.stringify(deviceContext || {})}
 
       Return valid JSON only in this exact format:
       {
-        "label": "short photo label",
+        "label": "short label for what was checked",
         "aiSummary": "1-2 sentence summary. Start with 'HAZARD:' only if there is a safety risk such as a swollen battery or exposed mains wiring.",
         "findings": [
           {
@@ -190,8 +200,8 @@ class GeminiService {
       imageCount: paths.length,
       modelUsed: result.modelUsed,
       analysis: {
-        label: result.data.label || 'AI image assessment',
-        aiSummary: result.data.aiSummary || 'The uploaded image was analyzed for physical damage and likely repair needs.',
+        label: result.data.label || (paths.length ? 'AI image assessment' : 'Your description'),
+        aiSummary: result.data.aiSummary || 'The problem was analyzed for likely causes and repair needs.',
         findings: result.data.findings.map(normalizeFinding),
       },
     };
