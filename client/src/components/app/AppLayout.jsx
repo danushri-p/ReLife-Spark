@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Search, Plus, LogOut, House, ChevronDown, X, CornerDownLeft } from 'lucide-react';
+import { Search, Plus, LogOut, House, ChevronDown, X, CornerDownLeft, UserRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const appNav = [
@@ -9,7 +9,7 @@ export const appNav = [
   { to: '/analysis', label: 'Analyze' },
   { to: '/assistant', label: 'Assistant' },
   { to: '/dashboard', label: 'Impact' },
-  { to: '/history', label: 'History' },
+  { to: '/profile', label: 'Profile' },
 ];
 
 const initials = (user) =>
@@ -20,7 +20,7 @@ const initials = (user) =>
     .join('')
     .toUpperCase();
 
-const Avatar = ({ user, className = 'h-8 w-8 text-xs' }) =>
+export const Avatar = ({ user, className = 'h-8 w-8 text-xs' }) =>
   user.picture ? (
     <img src={user.picture} alt="" referrerPolicy="no-referrer" className={`${className} rounded-full object-cover`} />
   ) : (
@@ -81,10 +81,18 @@ const AccountMenu = ({ user, onSignOut }) => {
             </div>
           </div>
           <Link
-            to="/"
+            to="/profile"
             role="menuitem"
             onClick={() => setOpen(false)}
             className="mt-1 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-[#141414] hover:bg-[#F4F1EA]"
+          >
+            <UserRound className="h-4 w-4" /> Profile &amp; history
+          </Link>
+          <Link
+            to="/"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-[#141414] hover:bg-[#F4F1EA]"
           >
             <House className="h-4 w-4" /> Back to website
           </Link>
@@ -175,8 +183,8 @@ export const AppLayout = () => {
   }, []);
 
   const handleSignOut = () => {
+    navigate('/', { replace: true });
     signOut();
-    navigate('/');
   };
 
   const tabClass = ({ isActive }) =>

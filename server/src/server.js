@@ -18,6 +18,16 @@ const server = app.listen(PORT, () => {
   console.log(`===============================================`);
 });
 
+// Port already taken (usually another copy of this server running in a different terminal)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use — another ReLife-Spark server is probably already running.`);
+    console.error(`   Use that one, or stop it first (Ctrl+C in its terminal). To find it: netstat -ano | findstr :${PORT}`);
+    process.exit(1);
+  }
+  throw err;
+});
+
 // Graceful shutdown handling
 const handleGracefulShutdown = (signal) => {
   console.log(`\n🛑 Received ${signal}. Shutting down server gracefully...`);

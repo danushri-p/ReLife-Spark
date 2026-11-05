@@ -1,17 +1,24 @@
 import { body, validationResult } from 'express-validator';
+import { DEVICE_TYPE_VALUES } from '../config/deviceTypes.js';
 
 export const validateDeviceInput = [
+  body('deviceType')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isIn(DEVICE_TYPE_VALUES)
+    .withMessage('Unsupported device type'),
+
   body('brand')
     .trim()
     .notEmpty()
-    .withMessage('Smartphone brand is required')
+    .withMessage('Device brand is required')
     .isLength({ max: 50 })
     .withMessage('Brand cannot exceed 50 characters'),
 
   body('model')
     .trim()
     .notEmpty()
-    .withMessage('Smartphone model is required')
+    .withMessage('Device model is required')
     .isLength({ max: 100 })
     .withMessage('Model cannot exceed 100 characters'),
 

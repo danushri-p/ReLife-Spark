@@ -6,7 +6,7 @@ const knowledgeArticles = [
         page: 'Battery Removal & Safety',
         tags: ['battery', 'safety', 'charging', 'swollen', 'repair'],
         summary: 'Follow battery handling and safety steps when diagnosing a swelling or charging issue.',
-        content: 'For swollen, overheating, or rapid-draining batteries, stop using the device and avoid puncturing the battery pack. Use approved replacement parts, discharge the phone to a safe handling level before opening, and ensure the replacement battery is compatible with the exact model. Re-check charging behavior and verify the housing and adhesive seal are correctly reassembled.',
+        content: 'For swollen, overheating, or rapid-draining batteries, stop using the device and avoid puncturing the battery pack. Use approved replacement parts, discharge the device to a safe handling level before opening, and ensure the replacement battery is compatible with the exact model. Re-check charging behavior and verify the housing and adhesive seal are correctly reassembled.',
     },
     {
         id: 'display-repair',
@@ -20,11 +20,11 @@ const knowledgeArticles = [
     {
         id: 'water-damage',
         title: 'Liquid Damage & Corrosion',
-        source: 'Smartphone Service Standards Summary',
+        source: 'Electronics Service Standards Summary',
         page: 'Liquid Ingress & Board Cleaning',
         tags: ['water', 'liquid', 'corrosion', 'charging port', 'moisture'],
         summary: 'Check whether corrosion is localized and whether board-level cleaning or a sub-board replacement is appropriate.',
-        content: 'If a phone has liquid damage, inspect the charging port, audio flex, and board connectors for corrosion or residue. Localized damage can sometimes be repaired by cleaning the board and replacing the affected connector or daughterboard. If corrosion has reached the logic board or spread under the shielding, complete board replacement may be the safer repair path.',
+        content: 'If a device has liquid damage, inspect the charging port, audio flex, and board connectors for corrosion or residue. Localized damage can sometimes be repaired by cleaning the board and replacing the affected connector or daughterboard. If corrosion has reached the logic board or spread under the shielding, complete board replacement may be the safer repair path.',
     },
     {
         id: 'warranty-rights',

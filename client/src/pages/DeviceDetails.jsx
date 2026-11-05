@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Smartphone,
   RotateCcw,
   ArrowRight,
   CircleCheck,
   TriangleAlert,
   X,
-  Sparkles,
   ShieldCheck,
   Scale,
   Info,
   LoaderCircle,
 } from 'lucide-react';
 import deviceService from '../services/deviceService';
+import assessmentService, { CURRENT_CASE_KEY } from '../services/assessmentService';
+import { useAuth } from '../context/AuthContext';
+import { caseRef } from '../utils/format';
+import { DEVICE_TYPES, DEFAULT_DEVICE_TYPE, getDeviceType } from '../data/deviceTypes';
 
 const inputCls =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#0d5b46]/50 focus:ring-2 focus:ring-[#0d5b46]/10';
@@ -36,8 +38,8 @@ const Required = () => (
 );
 
 const scoringWeights = [
-  { label: 'Repair cost vs. a new phone', pct: 35 },
-  { label: 'How old the phone is', pct: 25 },
+  { label: 'Repair cost vs. buying new', pct: 35 },
+  { label: 'How old the device is', pct: 25 },
   { label: 'Warranty cover', pct: 15 },
   { label: 'How easy it is to repair', pct: 15 },
   { label: 'Overall condition', pct: 10 },
@@ -45,14 +47,16 @@ const scoringWeights = [
 
 export const DeviceDetails = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const initialForm = {
-    brand: 'Apple',
-    model: 'iPhone 15 Pro',
-    deviceAge: 'Less than 6 months',
-    condition: 'Good',
-    warrantyStatus: 'AppleCare+ / Care Plan',
-    problemDescription: 'Impact fracture on front display after concrete drop. Touch matrix functional but vertical distortion line visible on right quadrant. TrueDepth sensor unaffected.',
+    deviceType: DEFAULT_DEVICE_TYPE,
+    brand: '',
+    model: '',
+    deviceAge: '',
+    condition: '',
+    warrantyStatus: '',
+    problemDescription: '',
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -60,37 +64,7 @@ export const DeviceDetails = () => {
   const [successResult, setSuccessResult] = useState(null);
   const [errorResult, setErrorResult] = useState(null);
 
-  const flagshipPresets = [
-    { brand: 'Apple', model: 'iPhone 15 Pro', age: 'Less than 6 months', repairability: 7, replacementEst: 899, condition: 'Good' },
-    { brand: 'Samsung', model: 'Galaxy S24 Ultra', age: 'Less than 6 months', repairability: 7, replacementEst: 999, condition: 'Good' },
-    { brand: 'Google Pixel', model: 'Pixel 8 Pro', age: '6 to 12 months', repairability: 7, replacementEst: 749, condition: 'Good' },
-    { brand: 'OnePlus', model: 'OnePlus 12', age: 'Less than 6 months', repairability: 6, replacementEst: 699, condition: 'Good' },
-    { brand: 'Xiaomi', model: 'Xiaomi 14 Ultra', age: 'Less than 6 months', repairability: 6, replacementEst: 799, condition: 'Fair' },
-  ];
 
-  const symptomTags = [
-    'Shattered Cover Glass',
-    'AMOLED Matrix Lines / Bleed',
-    'Battery Health Under 75%',
-    'Swollen Battery Pouch',
-    'Liquid Sensor Tripped',
-    'USB-C Port Intermittent',
-    'Face ID Dot Projector Fault',
-    'Camera Lens Cracked',
-  ];
-
-  const brandOptions = [
-    'Apple',
-    'Samsung',
-    'Google Pixel',
-    'OnePlus',
-    'Xiaomi',
-    'Motorola',
-    'Nothing',
-    'Sony',
-    'Oppo / Vivo',
-    'Other Brand',
-  ];
 
   const conditionOptions = [
     'Pristine',
@@ -117,19 +91,23 @@ export const DeviceDetails = () => {
     '4+ years',
   ];
 
+  const typeInfo = getDeviceType(formData.deviceType);
+  const symptomTags = typeInfo.symptoms;
+  const brandOptions = typeInfo.brands;
+  const TypeIcon = typeInfo.icon;
+
+  /** Switching device type keeps the brand only if it also makes that kind of device. */
+  const chooseType = (value) => {
+    setFormData((prev) =>
+      prev.deviceType === value
+        ? prev
+        : { ...prev, deviceType: value, brand: getDeviceType(value).brands.includes(prev.brand) ? prev.brand : '' }
+    );
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const applyPreset = (preset) => {
-    setFormData((prev) => ({
-      ...prev,
-      brand: preset.brand,
-      model: preset.model,
-      deviceAge: preset.age,
-      condition: preset.condition,
-    }));
   };
 
   const addSymptom = (symptom) => {
@@ -153,8 +131,15 @@ export const DeviceDetails = () => {
     setSuccessResult(null);
     setErrorResult(null);
 
-    if (!formData.brand.trim() || !formData.model.trim() || !formData.problemDescription.trim()) {
-      setErrorResult('Please complete all required fields (brand, model, and problem description).');
+    if (
+      !formData.brand.trim() ||
+      !formData.model.trim() ||
+      !formData.deviceAge ||
+      !formData.condition ||
+      !formData.warrantyStatus ||
+      !formData.problemDescription.trim()
+    ) {
+      setErrorResult('Please complete all required fields.');
       setLoading(false);
       return;
     }
@@ -166,22 +151,21 @@ export const DeviceDetails = () => {
     }
 
     try {
-      const result = await deviceService.createDevice(formData);
-      const savedId = result?.device?._id || result?._id || `DEV-${Math.floor(1000 + Math.random() * 9000)}`;
+      const deviceRes = await deviceService.createDevice(formData);
+      const deviceId = deviceRes?.device?._id || deviceRes?._id || null;
 
+      const caseRes = await assessmentService.create({ ...formData, deviceId, userId: user?.id });
+      const caseId = caseRes?.assessment?._id;
+      if (!caseId) throw new Error('The server did not return a case id.');
+
+      sessionStorage.setItem(CURRENT_CASE_KEY, caseId);
       setSuccessResult({
-        message: 'Your phone details are saved. Next, add a photo of the damage.',
-        device: { id: savedId, brand: formData.brand, model: formData.model },
+        message: `Your ${typeInfo.noun} details are saved. Next, add a photo of the damage.`,
+        device: { id: caseId, brand: formData.brand, model: formData.model },
       });
-
-      sessionStorage.setItem('current_device', JSON.stringify({ id: savedId, ...formData }));
     } catch (err) {
-      const mockId = `DEV-${Math.floor(1000 + Math.random() * 9000)}`;
-      sessionStorage.setItem('current_device', JSON.stringify({ id: mockId, ...formData }));
-      setSuccessResult({
-        message: 'Your phone details are saved on this device. Next, add a photo of the damage.',
-        device: { id: mockId, brand: formData.brand, model: formData.model }
-      });
+      const details = Array.isArray(err?.errors) ? err.errors.map((e) => e.message || e.msg).filter(Boolean).join(' ') : '';
+      setErrorResult(`${err?.message || 'Could not save your device details.'}${details ? ` ${details}` : ''}`);
     } finally {
       setLoading(false);
     }
@@ -194,46 +178,18 @@ export const DeviceDetails = () => {
       {/* Intro */}
       <div>
         <p className="text-[13px] uppercase tracking-[0.16em] text-[#0d4a3e]">Step 1 of 3</p>
-        <h2 className="mt-1 text-[1.9rem] font-medium tracking-tight text-[#16201d]">Tell us about your phone</h2>
+        <h2 className="mt-1 text-[1.9rem] font-medium tracking-tight text-[#16201d]">Tell us about your device</h2>
         <p className="mt-1 text-slate-500">
-          A few details about your phone and what&rsquo;s wrong help us work out whether a repair is worth it.
+          A few details about your device and what&rsquo;s wrong help us work out whether a repair is worth it.
         </p>
       </div>
-
-      {/* Quick fill */}
-      <Card className="p-6 sm:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="flex items-center gap-2 text-lg font-medium text-slate-900">
-            <Sparkles className="h-4 w-4 text-[#0d5b46]" />
-            Quick fill
-          </h3>
-          <span className="text-sm text-slate-500">Pick a popular phone to fill in the basics</span>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {flagshipPresets.map((preset, idx) => {
-            const selected = formData.brand === preset.brand && formData.model === preset.model;
-            return (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => applyPreset(preset)}
-                aria-pressed={selected}
-                className={`inline-flex items-center gap-1.5 ${chipCls(selected)}`}
-              >
-                <Smartphone className="h-3.5 w-3.5" />
-                {preset.model}
-              </button>
-            );
-          })}
-        </div>
-      </Card>
 
       {/* Feedback */}
       {errorResult && (
         <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-800">
           <TriangleAlert className="mt-0.5 h-5 w-5 flex-shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">Something&rsquo;s missing</p>
+            <p className="text-sm font-medium">Couldn&rsquo;t save yet</p>
             <p className="mt-0.5 text-sm">{errorResult}</p>
           </div>
           <button
@@ -256,14 +212,14 @@ export const DeviceDetails = () => {
               <div className="min-w-0">
                 <p className="text-lg font-medium">{successResult.message}</p>
                 <p className="mt-1 truncate text-sm text-white/60">
-                  {successResult.device.brand} {successResult.device.model} · Reference{' '}
-                  <span className="tabular-nums text-[#7fffd4]">{successResult.device.id}</span>
+                  {successResult.device.brand} {successResult.device.model} · Case{' '}
+                  <span className="tabular-nums text-[#7fffd4]">#{caseRef(successResult.device.id)}</span>
                 </p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() => navigate('/analysis')}
+              onClick={() => navigate(`/analysis?id=${successResult.device.id}`)}
               className="inline-flex flex-shrink-0 items-center justify-center gap-2 rounded-full bg-[#2feaa8] px-5 py-3 text-sm font-medium text-[#0b2a23] transition hover:bg-[#7fffd4]"
             >
               Continue to photo check <ArrowRight className="h-4 w-4" />
@@ -277,21 +233,60 @@ export const DeviceDetails = () => {
         <Card className="p-6 sm:p-8 lg:col-span-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-slate-900">Your phone</h3>
+              <h3 className="text-lg font-medium text-slate-900">Your device</h3>
               <p className="mt-1 text-sm text-slate-500">Fields marked * are required.</p>
             </div>
+
+            <fieldset className="min-w-0">
+              <legend className={labelCls}>
+                What kind of device?<Required />
+              </legend>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {DEVICE_TYPES.map(({ value, icon: Icon }) => {
+                  const selected = formData.deviceType === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => chooseType(value)}
+                      aria-pressed={selected}
+                      className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-center text-xs transition ${
+                        selected
+                          ? 'border-[#0d5b46]/40 bg-[#e3f1ec] text-[#0d4a3e]'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-[#0d5b46]/30 hover:text-[#0d4a3e]'
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span className="leading-tight">{value}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div className="min-w-0">
                 <label htmlFor="brand" className={labelCls}>
                   Brand<Required />
                 </label>
-                <select id="brand" name="brand" value={formData.brand} onChange={handleChange} className={inputCls} required>
-                  <option value="">Choose a brand</option>
+                <input
+                  id="brand"
+                  type="text"
+                  name="brand"
+                  list="brand-options"
+                  autoComplete="off"
+                  placeholder={brandOptions.length ? `e.g. ${brandOptions.slice(0, 2).join(', ')}` : 'Who made it?'}
+                  value={formData.brand}
+                  onChange={handleChange}
+                  className={inputCls}
+                  maxLength={50}
+                  required
+                />
+                <datalist id="brand-options">
                   {brandOptions.map((brand) => (
-                    <option key={brand} value={brand}>{brand}</option>
+                    <option key={brand} value={brand} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div className="min-w-0">
@@ -302,7 +297,7 @@ export const DeviceDetails = () => {
                   id="model"
                   type="text"
                   name="model"
-                  placeholder="e.g. Galaxy S24 Ultra 512GB"
+                  placeholder={typeInfo.modelPlaceholder}
                   value={formData.model}
                   onChange={handleChange}
                   className={inputCls}
@@ -313,8 +308,9 @@ export const DeviceDetails = () => {
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
               <div className="min-w-0">
-                <label htmlFor="deviceAge" className={labelCls}>How old is it?</label>
-                <select id="deviceAge" name="deviceAge" value={formData.deviceAge} onChange={handleChange} className={inputCls}>
+                <label htmlFor="deviceAge" className={labelCls}>How old is it?<Required /></label>
+                <select id="deviceAge" name="deviceAge" value={formData.deviceAge} onChange={handleChange} className={inputCls} required>
+                  <option value="">Choose…</option>
                   {ageOptions.map((age) => (
                     <option key={age} value={age}>{age}</option>
                   ))}
@@ -322,8 +318,9 @@ export const DeviceDetails = () => {
               </div>
 
               <div className="min-w-0">
-                <label htmlFor="condition" className={labelCls}>Overall condition</label>
-                <select id="condition" name="condition" value={formData.condition} onChange={handleChange} className={inputCls}>
+                <label htmlFor="condition" className={labelCls}>Overall condition<Required /></label>
+                <select id="condition" name="condition" value={formData.condition} onChange={handleChange} className={inputCls} required>
+                  <option value="">Choose…</option>
                   {conditionOptions.map((cond) => (
                     <option key={cond} value={cond}>{cond}</option>
                   ))}
@@ -331,8 +328,9 @@ export const DeviceDetails = () => {
               </div>
 
               <div className="min-w-0">
-                <label htmlFor="warrantyStatus" className={labelCls}>Warranty</label>
-                <select id="warrantyStatus" name="warrantyStatus" value={formData.warrantyStatus} onChange={handleChange} className={inputCls}>
+                <label htmlFor="warrantyStatus" className={labelCls}>Warranty<Required /></label>
+                <select id="warrantyStatus" name="warrantyStatus" value={formData.warrantyStatus} onChange={handleChange} className={inputCls} required>
+                  <option value="">Choose…</option>
                   {warrantyOptions.map((warr) => (
                     <option key={warr} value={warr}>{warr}</option>
                   ))}
@@ -372,7 +370,7 @@ export const DeviceDetails = () => {
                 id="problemDescription"
                 name="problemDescription"
                 rows={5}
-                placeholder="e.g. The screen cracked after a drop, touch still works, and the battery drains from 100% to 20% in an hour…"
+                placeholder="e.g. It stopped working after a drop, the screen is cracked, and the battery drains much faster than before…"
                 value={formData.problemDescription}
                 onChange={handleChange}
                 className={`${inputCls} leading-relaxed`}
@@ -415,27 +413,30 @@ export const DeviceDetails = () => {
             <p className="text-[13px] uppercase tracking-[0.16em] text-slate-500">Your summary</p>
             <div className="mt-4 flex items-center gap-3">
               <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-[#e3f1ec] text-[#0d4a3e]">
-                <Smartphone className="h-5 w-5" />
+                <TypeIcon className="h-5 w-5" />
               </span>
               <div className="min-w-0">
                 <p className="truncate text-base font-medium text-[#16201d]">{formData.model || 'No model yet'}</p>
-                <p className="truncate text-sm text-slate-500">{formData.brand || 'No brand chosen'}</p>
+                <p className="truncate text-sm text-slate-500">
+                  {formData.deviceType} · {formData.brand || 'no brand yet'}
+                </p>
               </div>
             </div>
             <dl className="mt-5 space-y-3 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <dt className="flex-shrink-0 text-slate-500">Age</dt>
-                <dd className="min-w-0 truncate text-right text-slate-800">{formData.deviceAge}</dd>
+                <dd className="min-w-0 truncate text-right text-slate-800">{formData.deviceAge || '—'}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="flex-shrink-0 text-slate-500">Condition</dt>
-                <dd className="min-w-0 truncate text-right text-slate-800">{formData.condition}</dd>
+                <dd className="min-w-0 truncate text-right text-slate-800">{formData.condition || '—'}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="flex-shrink-0 text-slate-500">Warranty</dt>
-                <dd className="min-w-0 truncate text-right text-slate-800">{formData.warrantyStatus}</dd>
+                <dd className="min-w-0 truncate text-right text-slate-800">{formData.warrantyStatus || '—'}</dd>
               </div>
             </dl>
+            {formData.warrantyStatus && (
             <div
               className={`mt-5 flex items-start gap-3 rounded-2xl px-4 py-3 text-sm ${
                 isCovered ? 'bg-[#eef6f2] text-slate-700' : 'bg-amber-100 text-amber-700'
@@ -452,6 +453,7 @@ export const DeviceDetails = () => {
                   : 'No active cover, so you would likely pay for the repair yourself.'}
               </p>
             </div>
+            )}
           </Card>
 
           <Card className="p-6 sm:p-7">

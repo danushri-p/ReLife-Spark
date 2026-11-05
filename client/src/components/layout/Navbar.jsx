@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Gauge, LogOut, LayoutDashboard, ChevronDown } from 'lucide-react';
+import { ArrowUpRight, Gauge, LogOut, LayoutDashboard, UserRound, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Avatar = ({ user, size = 'h-9 w-9' }) =>
@@ -60,6 +60,14 @@ const UserMenu = ({ user, onSignOut }) => {
             className="mt-1 flex items-center gap-2.5 rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-50"
           >
             <LayoutDashboard className="h-4 w-4" /> Open app
+          </Link>
+          <Link
+            to="/profile"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            <UserRound className="h-4 w-4" /> Profile &amp; history
           </Link>
           <button
             type="button"
@@ -128,7 +136,7 @@ export const Navbar = () => {
           ) : (
             <Link
               to="/login"
-              state={{ from: location.pathname === '/login' || location.pathname === '/signup' ? undefined : location.pathname }}
+              state={{ from: ['/', '/login', '/signup'].includes(location.pathname) ? undefined : `${location.pathname}${location.search}` }}
               className="flex items-center gap-2 rounded-full border border-white/70 bg-white/75 px-4 py-2 text-[15px] text-slate-800 shadow-sm backdrop-blur-md transition-colors hover:bg-white hover:text-slate-950"
             >
               Sign In <ArrowUpRight className="w-3.5 h-3.5" />

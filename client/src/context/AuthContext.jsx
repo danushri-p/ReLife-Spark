@@ -10,7 +10,8 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const STORAGE_KEY = 'relife-spark:user';
-const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const SIGNED_OUT_KEY = `${STORAGE_KEY}:signed-out`;
+const SESSION_MS =7 * 24 * 60 * 60 * 1000;
 
 const AuthContext = createContext(null);
 
@@ -37,25 +38,36 @@ const createDemoUser = () => ({
   signedInAt: Date.now(),
 });
 
+/** With Google not configured, first-time visitors get a demo user — unless they explicitly signed out. */
+const fallbackUser = () => {
+  if (GOOGLE_CLIENT_ID) return null;
+  try {
+    if (localStorage.getItem(SIGNED_OUT_KEY)) return null;
+  } catch {
+    /* ignore */
+  }
+  return createDemoUser();
+};
+
 const readStoredUser = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return GOOGLE_CLIENT_ID ? null : createDemoUser();
-    }
+    if (!raw) return fallbackUser();
     const user = JSON.parse(raw);
     if (!user?.email || Date.now() - user.signedInAt > SESSION_MS) {
       localStorage.removeItem(STORAGE_KEY);
-      return GOOGLE_CLIENT_ID ? null : createDemoUser();
+      return fallbackUser();
     }
     return user;
   } catch {
-    return GOOGLE_CLIENT_ID ? null : createDemoUser();
+    return fallbackUser();
   }
 };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(readStoredUser);
+  // True right after an explicit sign-out, so protected pages send the user home rather than to /login.
+  const [signedOut, setSignedOut] = useState(false);
 
   /** Turns a Google ID token into a signed-in user. Throws if the token looks wrong. */
   const signInWithGoogle = useCallback((credential) => {
@@ -78,10 +90,12 @@ export const AuthProvider = ({ children }) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       localStorage.setItem(`${STORAGE_KEY}:seen:${p.sub}`, '1');
+      localStorage.removeItem(SIGNED_OUT_KEY);
     } catch {
       /* storage blocked (private mode) — stay signed in for this tab only */
     }
 
+    setSignedOut(false);
     setUser(next);
     return { user: next, isNewUser };
   }, []);
@@ -91,9 +105,11 @@ export const AuthProvider = ({ children }) => {
     const next = createDemoUser();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      localStorage.removeItem(SIGNED_OUT_KEY);
     } catch {
       /* ignore */
     }
+    setSignedOut(false);
     setUser(next);
     return { user: next, isNewUser: false };
   }, []);
@@ -101,22 +117,19 @@ export const AuthProvider = ({ children }) => {
   const signOut = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
+      // Remember the explicit sign-out so a reload doesn't auto-sign-in a demo user.
+      localStorage.setItem(SIGNED_OUT_KEY, '1');
     } catch {
       /* ignore */
     }
     window.google?.accounts?.id?.disableAutoSelect();
-    if (!GOOGLE_CLIENT_ID) {
-      const next = createDemoUser();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      setUser(next);
-      return;
-    }
+    setSignedOut(true);
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading: false, signInWithGoogle, signInDemo, signOut, googleEnabled: Boolean(GOOGLE_CLIENT_ID) }),
-    [user, signInWithGoogle, signInDemo, signOut]
+    () => ({ user, loading: false, signedOut, signInWithGoogle, signInDemo, signOut, googleEnabled: Boolean(GOOGLE_CLIENT_ID) }),
+    [user, signedOut, signInWithGoogle, signInDemo, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

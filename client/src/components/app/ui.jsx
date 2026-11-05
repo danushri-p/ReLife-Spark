@@ -1,5 +1,4 @@
 import React from 'react';
-import { FlaskConical } from 'lucide-react';
 
 /*
  * "Workbench" design system for the signed-in app.
@@ -47,17 +46,6 @@ export const PageTitle = ({ eyebrow, title, intro, actions }) => (
     </div>
     {actions && <div className="flex flex-shrink-0 flex-wrap gap-2">{actions}</div>}
   </div>
-);
-
-export const SampleTag = ({ dark = false }) => (
-  <span
-    className={cx(
-      'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider',
-      dark ? 'border-white/15 text-white/55' : 'border-[#E3DED3] text-[#9A958B]'
-    )}
-  >
-    <FlaskConical className="h-3 w-3" /> Sample
-  </span>
 );
 
 const verdictTone = {

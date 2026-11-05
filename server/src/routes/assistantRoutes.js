@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { handleAssistantChat } from '../controllers/assistantController.js';
+import { handleAssistantChat, listConversations, getConversation, deleteConversation } from '../controllers/assistantController.js';
 import { getKnowledgeCatalog } from '../services/knowledgeBaseService.js';
+import { uploadDamageImages } from '../middleware/upload.js';
 
 const router = Router();
 
@@ -13,8 +14,13 @@ router.get('/knowledge', (req, res) => {
     });
 });
 
-// POST /api/assistant/chat
-router.post('/chat', handleAssistantChat);
+// POST /api/assistant/chat  (JSON, or multipart with up to 3 `photos`)
+router.post('/chat', uploadDamageImages.array('photos', 3), handleAssistantChat);
+
+// Saved chats
+router.get('/conversations', listConversations);
+router.get('/conversations/:id', getConversation);
+router.delete('/conversations/:id', deleteConversation);
 
 export default router;
 

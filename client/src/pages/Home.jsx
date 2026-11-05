@@ -86,12 +86,13 @@ export const Home = () => {
 
               <p className="mt-8 max-w-[530px] text-[17px] leading-[2.05] text-slate-600">
                 Understand your device damage, analyze repair quotations, and discover whether
-                repairing or replacing your smartphone makes more sense with AI.
+                repairing or replacing your phone, laptop or other device makes more sense with AI.
               </p>
 
               <div className="mt-9 flex flex-wrap items-center gap-8">
                 <Link
-                  to="/device"
+                  to="/login"
+                  state={{ from: '/device' }}
                   className="inline-flex items-center gap-3 rounded-md bg-[#0d5b46] px-6 py-[18px] text-[17px] font-medium text-white shadow-[0_12px_24px_-12px_rgba(13,74,62,0.7)] transition hover:bg-[#0a4a39] active:scale-[0.98]"
                 >
                   Analyze My Device

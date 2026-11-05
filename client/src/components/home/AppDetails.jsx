@@ -10,10 +10,6 @@ import {
   BookOpenText,
   Leaf,
   Check,
-  Info,
-  Recycle,
-  Cloud,
-  IndianRupee,
 } from 'lucide-react';
 
 /* ── Content (mirrors the README's functional requirements) ── */
@@ -25,7 +21,7 @@ const features = [
     title: 'Device profile',
     tagline: 'Context for every answer',
     summary:
-      'Start by telling ReLife-Spark about your phone. Every diagnosis, quote check and recommendation that follows is tailored to this profile.',
+      'Start by telling ReLife-Spark about your device: phone, tablet, laptop, smartwatch, headphones, camera, console or TV. Every diagnosis, quote check and recommendation that follows is tailored to this profile.',
     provide: ['Brand and model', 'Device age and overall condition', 'Warranty status', 'A short description of the problem'],
     get: ['A saved device context reused across every tool', 'Validated inputs, so the maths later on is reliable'],
     tech: ['React form', 'Express Validator', 'MongoDB Atlas'],
@@ -38,7 +34,7 @@ const features = [
     title: 'Photo diagnosis',
     tagline: 'See what the damage really is',
     summary:
-      'Upload a photo of the damaged phone. Gemini inspects visible damage and describes the likely issues and how serious they appear.',
+      'Upload a photo of the damaged device. Gemini inspects visible damage and describes the likely issues and how serious they appear.',
     provide: ['One clear image of the damage (JPG or PNG)'],
     get: ['Possible issues, in plain language', 'An estimated severity level', 'What a technician should check in person'],
     tech: ['Gemini 1.5 Flash (vision)', 'Multer uploads'],
@@ -96,7 +92,7 @@ const features = [
     summary:
       'See what repairing instead of replacing could mean beyond your wallet: e-waste avoided, carbon impact and the money you keep.',
     provide: ['Nothing extra; it uses your device and quote'],
-    get: ['Estimated e-waste avoided', 'Estimated CO₂e impact, where reliable data exists', 'Cost difference: repair vs replace'],
+    get: ['Estimated e-waste avoided', 'Devices kept in use instead of replaced', 'Cost difference: repair vs replace'],
     tech: ['Impact estimates', 'Dashboard'],
     sample: { label: 'Sample saving', value: 'Repair keeps ₹48,500 in your pocket' },
     cta: { label: 'View impact', to: '/dashboard' },
@@ -104,24 +100,10 @@ const features = [
 ];
 
 const steps = [
-  { icon: Smartphone, title: 'Tell us about your device', text: 'Model, age, condition, warranty and what went wrong.' },
+  { icon: Smartphone, title: 'Tell us about your device', text: 'Device type, model, age, condition, warranty and what went wrong.' },
   { icon: ScanLine, title: 'Show the damage', text: 'Upload a photo and get likely issues with a severity estimate.' },
   { icon: FileText, title: 'Share your quote', text: 'We extract parts and labour and compare them to reference prices.' },
   { icon: Gauge, title: 'Decide with confidence', text: 'Get your Repair Score, a recommendation and the reasoning behind it.' },
-];
-
-const weights = [
-  { label: 'Repair cost vs replacement cost', value: 35 },
-  { label: 'Device age', value: 25 },
-  { label: 'Warranty status', value: 15 },
-  { label: 'Repairability', value: 15 },
-  { label: 'Overall device condition', value: 10 },
-];
-
-const bands = [
-  { range: '60 – 100', verdict: 'REPAIR', text: 'Repairing is the better value.', tone: 'bg-[#0d5b46] text-white' },
-  { range: '40 – 59', verdict: 'EITHER', text: 'Both options are reasonable.', tone: 'bg-amber-100 text-amber-800' },
-  { range: '0 – 39', verdict: 'REPLACE', text: 'Replacing makes more sense.', tone: 'bg-slate-200 text-slate-700' },
 ];
 
 /* ── Small building blocks ── */
@@ -218,7 +200,8 @@ export const AppDetails = () => {
                 </div>
               </div>
               <Link
-                to={active.cta.to}
+                to="/login"
+                state={{ from: active.cta.to }}
                 className="inline-flex items-center gap-2 rounded-md bg-[#0d5b46] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0a4a39]"
               >
                 {active.cta.label}
@@ -277,7 +260,8 @@ export const AppDetails = () => {
           </ol>
 
           <Link
-            to="/device"
+            to="/login"
+            state={{ from: '/device' }}
             className="mt-12 inline-flex items-center gap-2 text-[15px] font-medium text-[#0d4a3e] hover:underline"
           >
             Start with your device <ArrowRight className="h-4 w-4" />
@@ -285,111 +269,8 @@ export const AppDetails = () => {
         </div>
       </section>
 
-      {/* 3 · Repair Score */}
-      <section className="mx-auto max-w-7xl px-6 py-24">
-        <div className="grid items-start gap-12 lg:grid-cols-2">
-          <div>
-            <SectionTitle
-              eyebrow="The Repair Score"
-              title="Transparent maths, not a black box."
-              text="Your score is calculated with a fixed, weighted formula, so the same inputs always give the same answer. Gemini explains the result; it never decides the number."
-            />
-
-            <div className="mt-10 space-y-5">
-              {weights.map(({ label, value }) => (
-                <div key={label}>
-                  <div className="mb-2 flex items-baseline justify-between text-sm">
-                    <span className="text-slate-700">{label}</span>
-                    <span className="tabular-nums font-medium text-slate-900">{value}%</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-300/60">
-                    <div className="h-full rounded-full bg-[#0d5b46]" style={{ width: `${(value / 35) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
-            <div className="flex items-center justify-between">
-              <Eyebrow>Sample result</Eyebrow>
-              <span className="text-xs text-slate-400">Galaxy S23 · illustrative</span>
-            </div>
-
-            <div className="mt-6 flex items-end gap-4">
-              <span className="text-7xl font-medium leading-none tracking-tight text-[#16201d]">{sampleScore}</span>
-              <span className="pb-2 text-lg text-slate-400">/ 100</span>
-              <span className="mb-2 ml-auto rounded-full bg-[#0d5b46] px-3 py-1 text-sm font-medium text-white">REPAIR</span>
-            </div>
-
-            {/* Score track */}
-            <div className="relative mt-8">
-              <div className="flex h-2.5 overflow-hidden rounded-full">
-                <span className="w-[40%] bg-slate-300" />
-                <span className="w-[20%] bg-amber-300" />
-                <span className="w-[40%] bg-[#0d5b46]" />
-              </div>
-              <span
-                className="absolute -top-1.5 h-5 w-1 -translate-x-1/2 rounded-full bg-[#16201d] ring-2 ring-white"
-                style={{ left: `${sampleScore}%` }}
-              />
-              <div className="relative mt-2 h-4 text-[11px] tabular-nums text-slate-400">
-                <span className="absolute left-0">0</span>
-                <span className="absolute left-[40%] -translate-x-1/2">40</span>
-                <span className="absolute left-[60%] -translate-x-1/2">60</span>
-                <span className="absolute right-0">100</span>
-              </div>
-            </div>
-
-            <div className="mt-8 space-y-2.5">
-              {bands.map(({ range, verdict, text, tone }) => (
-                <div key={verdict} className="flex items-center gap-4 rounded-md border border-slate-100 px-4 py-3">
-                  <span className={`w-[76px] rounded-full px-2.5 py-1 text-center text-[11px] font-medium ${tone}`}>{verdict}</span>
-                  <span className="flex-1 text-sm text-slate-600">{text}</span>
-                  <span className="text-xs tabular-nums text-slate-400">{range}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4 · Impact & honesty */}
-      <section className="mx-auto max-w-7xl px-6 pb-24">
-        <SectionTitle
-          eyebrow="Our impact"
-          title="Smarter for your wallet. Better for the planet."
-          text="Every repairable phone that stays in use is one less device in a landfill. ReLife-Spark shows you what your choice means."
-        />
-
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {[
-            { icon: Recycle, title: 'E-waste avoided', text: 'An estimate of the device weight kept out of the waste stream when you repair.' },
-            { icon: Cloud, title: 'CO₂e impact', text: 'Estimated emissions saved by not manufacturing a new phone, shown only where reliable data exists.' },
-            { icon: IndianRupee, title: 'Money kept', text: 'The cost difference between your repair quote and the replacement you were considering.' },
-          ].map(({ icon: Icon, title, text }) => (
-            <div key={title} className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#eaf3f0] text-[#0d4a3e]">
-                <Icon className="h-5 w-5" />
-              </span>
-              <h3 className="mt-5 text-lg font-medium text-slate-900">{title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">{text}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 flex gap-3 rounded-xl border border-amber-200/80 bg-amber-50/70 p-5 text-sm leading-relaxed text-amber-900">
-          <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          <p>
-            <span className="font-medium">An informational tool, not a technician.</span> ReLife-Spark does not
-            conclusively diagnose hardware faults, guarantee unbiased decisions, or judge a technician&rsquo;s honesty
-            based on price. Use it to ask better questions and decide with more context.
-          </p>
-        </div>
-      </section>
-
-      {/* 5 · Closing CTA */}
-      <section className="px-6 pb-24">
+      {/* 3 · Closing CTA */}
+      <section className="px-6 py-24">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 overflow-hidden rounded-2xl bg-[#0d4a3e] px-8 py-12 text-white sm:px-12 md:flex-row md:items-center">
           <div>
             <p className="text-xs uppercase tracking-[0.14em] text-[#9fe3c9]">Know before you pay</p>
@@ -398,7 +279,8 @@ export const AppDetails = () => {
             </h2>
           </div>
           <Link
-            to="/device"
+            to="/login"
+            state={{ from: '/device' }}
             className="inline-flex flex-shrink-0 items-center gap-3 rounded-md bg-white px-6 py-4 text-[16px] font-medium text-[#0d4a3e] transition hover:bg-[#eaf3f0]"
           >
             Start Free Assessment
