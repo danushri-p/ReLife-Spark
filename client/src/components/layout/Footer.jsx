@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gauge, Cpu, Shield, Database, Award } from 'lucide-react';
+import { Cpu, Shield, Database, Award } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const Footer = () => {
@@ -9,9 +9,7 @@ export const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           <div className="md:col-span-2 space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#0d4a3e] flex items-center justify-center text-white">
-                <Gauge className="w-4 h-4" />
-              </div>
+              <img src="/logo.png" alt="" className="h-9 w-auto flex-shrink-0 object-contain" />
               <span className="font-bold text-base text-slate-900 tracking-tight">
                 ReLife-<span className="text-[#0d4a3e]">Spark</span>
               </span>
