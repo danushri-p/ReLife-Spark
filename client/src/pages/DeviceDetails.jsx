@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   RotateCcw,
   ArrowRight,
-  CircleCheck,
   TriangleAlert,
   X,
   ShieldCheck,
@@ -14,19 +13,12 @@ import {
 import deviceService from '../services/deviceService';
 import assessmentService, { CURRENT_CASE_KEY } from '../services/assessmentService';
 import { useAuth } from '../context/AuthContext';
-import { caseRef } from '../utils/format';
 import { DEVICE_TYPES, DEFAULT_DEVICE_TYPE, getDeviceType } from '../data/deviceTypes';
+import ProblemTypePicker from '../components/app/ProblemTypePicker';
 
 const inputCls =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#0d5b46]/50 focus:ring-2 focus:ring-[#0d5b46]/10';
 const labelCls = 'mb-2 block text-sm font-medium text-slate-700';
-const chipCls = (selected) =>
-  `rounded-full border px-3 py-1.5 text-xs transition ${
-    selected
-      ? 'border-[#0d5b46]/30 bg-[#e3f1ec] text-[#0d4a3e]'
-      : 'border-slate-200 bg-white text-slate-600 hover:border-[#0d5b46]/30 hover:text-[#0d4a3e]'
-  }`;
-
 const Card = ({ className = '', children }) => (
   <section className={`min-w-0 rounded-[28px] border border-slate-200/70 bg-white ${className}`}>{children}</section>
 );
@@ -56,18 +48,17 @@ export const DeviceDetails = () => {
     deviceAge: '',
     condition: '',
     warrantyStatus: '',
+    problemType: '',
     problemDescription: '',
   };
 
   const [formData, setFormData] = useState(initialForm);
   const [loading, setLoading] = useState(false);
-  const [successResult, setSuccessResult] = useState(null);
   const [errorResult, setErrorResult] = useState(null);
 
 
 
   const conditionOptions = [
-    'Pristine',
     'Good',
     'Fair',
     'Heavily Used',
@@ -92,7 +83,6 @@ export const DeviceDetails = () => {
   ];
 
   const typeInfo = getDeviceType(formData.deviceType);
-  const symptomTags = typeInfo.symptoms;
   const brandOptions = typeInfo.brands;
   const TypeIcon = typeInfo.icon;
 
@@ -110,25 +100,14 @@ export const DeviceDetails = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const addSymptom = (symptom) => {
-    setFormData((prev) => {
-      const current = prev.problemDescription.trim();
-      if (!current) return { ...prev, problemDescription: symptom };
-      if (current.includes(symptom)) return prev;
-      return { ...prev, problemDescription: `${current}. Reported: ${symptom}.` };
-    });
-  };
-
   const handleReset = () => {
     setFormData(initialForm);
-    setSuccessResult(null);
     setErrorResult(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setSuccessResult(null);
     setErrorResult(null);
 
     if (
@@ -137,15 +116,9 @@ export const DeviceDetails = () => {
       !formData.deviceAge ||
       !formData.condition ||
       !formData.warrantyStatus ||
-      !formData.problemDescription.trim()
+      !formData.problemType
     ) {
       setErrorResult('Please complete all required fields.');
-      setLoading(false);
-      return;
-    }
-
-    if (formData.problemDescription.trim().length < 10) {
-      setErrorResult('Problem description must be at least 10 characters long.');
       setLoading(false);
       return;
     }
@@ -159,10 +132,8 @@ export const DeviceDetails = () => {
       if (!caseId) throw new Error('The server did not return a case id.');
 
       sessionStorage.setItem(CURRENT_CASE_KEY, caseId);
-      setSuccessResult({
-        message: `Your ${typeInfo.noun} details are saved. Next, add a photo of the damage.`,
-        device: { id: caseId, brand: formData.brand, model: formData.model },
-      });
+      // Straight on to the Analyze page, where the problem is checked.
+      navigate(`/analysis?id=${caseId}`);
     } catch (err) {
       const details = Array.isArray(err?.errors) ? err.errors.map((e) => e.message || e.msg).filter(Boolean).join(' ') : '';
       setErrorResult(`${err?.message || 'Could not save your device details.'}${details ? ` ${details}` : ''}`);
@@ -203,30 +174,6 @@ export const DeviceDetails = () => {
         </div>
       )}
 
-      {successResult && (
-        <section className="relative min-w-0 overflow-hidden rounded-[28px] bg-[#0d2f27] p-6 text-white sm:p-7">
-          <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#2feaa8]/15 blur-3xl" />
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <CircleCheck className="mt-0.5 h-6 w-6 flex-shrink-0 text-[#2feaa8]" />
-              <div className="min-w-0">
-                <p className="text-lg font-medium">{successResult.message}</p>
-                <p className="mt-1 truncate text-sm text-white/60">
-                  {successResult.device.brand} {successResult.device.model} · Case{' '}
-                  <span className="tabular-nums text-[#7fffd4]">#{caseRef(successResult.device.id)}</span>
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(`/analysis?id=${successResult.device.id}`)}
-              className="inline-flex flex-shrink-0 items-center justify-center gap-2 rounded-full bg-[#2feaa8] px-5 py-3 text-sm font-medium text-[#0b2a23] transition hover:bg-[#7fffd4]"
-            >
-              Continue to photo check <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        </section>
-      )}
 
       <div className="grid gap-6 lg:grid-cols-12">
         {/* Form */}
@@ -338,45 +285,16 @@ export const DeviceDetails = () => {
               </div>
             </div>
 
-            <div className="space-y-3 border-t border-slate-100 pt-6">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <label htmlFor="problemDescription" className="text-lg font-medium text-slate-900">
-                  What&rsquo;s wrong?<Required />
-                </label>
-                <span className="text-xs tabular-nums text-slate-400">
-                  {formData.problemDescription.length} characters
-                </span>
-              </div>
-              <p className="text-sm text-slate-500">Tap any that apply, then add anything else in your own words.</p>
+            <fieldset className="min-w-0 space-y-3 border-t border-slate-100 pt-6">
+              <legend className="text-lg font-medium text-slate-900">
+                Is it a hardware or software problem?<Required />
+              </legend>
+              <p className="text-sm text-slate-500">
+                Hardware problems are checked from a photo. Software and other problems you can&rsquo;t see are described on the next page.
+              </p>
+              <ProblemTypePicker value={formData.problemType} onChange={(v) => setFormData((prev) => ({ ...prev, problemType: v }))} />
+            </fieldset>
 
-              <div className="flex flex-wrap gap-2">
-                {symptomTags.map((tag, i) => {
-                  const added = formData.problemDescription.includes(tag);
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => addSymptom(tag)}
-                      aria-pressed={added}
-                      className={chipCls(added)}
-                    >
-                      {added ? '✓' : '+'} {tag}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <textarea
-                id="problemDescription"
-                name="problemDescription"
-                rows={5}
-                placeholder="e.g. It stopped working after a drop, the screen is cracked, and the battery drains much faster than before…"
-                value={formData.problemDescription}
-                onChange={handleChange}
-                className={`${inputCls} leading-relaxed`}
-                required
-              />
-            </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <button

@@ -11,6 +11,7 @@ import {
   Info,
   LoaderCircle,
   MessageCircleQuestion,
+  PenLine,
   Plus,
   Save,
   Scale,
@@ -20,7 +21,9 @@ import {
 } from 'lucide-react';
 import { verdictStyles, formatINR, caseRef } from '../utils/format';
 import assessmentService, { CURRENT_CASE_KEY } from '../services/assessmentService';
-import { DEFAULT_DEVICE_TYPE, deviceNoun } from '../data/deviceTypes';
+import { DEFAULT_DEVICE_TYPE, deviceNoun, getDeviceType } from '../data/deviceTypes';
+import { SOFTWARE_SYMPTOMS, normalizeProblemType, wantsPhoto } from '../data/problemTypes';
+import ProblemTypePicker from '../components/app/ProblemTypePicker';
 import uploadService from '../services/uploadService';
 import repairService from '../services/repairService';
 
@@ -96,7 +99,7 @@ const ScoreGauge = ({ score }) => {
 };
 
 const steps = [
-  { key: 'vision', label: 'Check the damage', icon: ScanLine },
+  { key: 'vision', label: 'Check the problem', icon: ScanLine },
   { key: 'quote', label: 'Review the quote', icon: FileText },
   { key: 'decision', label: 'Get the decision', icon: Scale },
 ];
@@ -116,6 +119,7 @@ export const RepairAnalysis = () => {
     deviceAge: '',
     condition: '',
     warrantyStatus: '',
+    problemType: 'unsure',
     problemDescription: '',
   });
 
@@ -221,6 +225,8 @@ export const RepairAnalysis = () => {
 
   // --- STEP 1: PHOTO DAMAGE CHECK ---
   const [selectedDamageImage, setSelectedDamageImage] = useState(null);
+  const [selectedDamageFile, setSelectedDamageFile] = useState(null);
+  const [description, setDescription] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [visionAnalysis, setVisionAnalysis] = useState(null);
   const [visionError, setVisionError] = useState('');
@@ -314,8 +320,10 @@ export const RepairAnalysis = () => {
           deviceAge: a.deviceAge,
           condition: a.condition,
           warrantyStatus: a.warrantyStatus,
+          problemType: normalizeProblemType(a.problemType),
           problemDescription: a.problemDescription,
         });
+        setDescription(a.problemDescription || '');
         if (a.vision?.findings?.length) setVisionAnalysis(a.vision);
         if (a.quote) {
           setQuoteParts(a.quote.parts || 0);
@@ -345,6 +353,59 @@ export const RepairAnalysis = () => {
     // (deps intentionally limited to caseId)
   }, [caseId]);
 
+  /** Diagnose from a photo, the written description, or both. */
+  const runCheck = (file, text) => {
+    const described = (text || '').trim();
+    if (!file && described.length < 5) {
+      setVisionError('Add a photo, or describe the problem in a few words.');
+      return Promise.resolve();
+    }
+
+    setIsScanning(true);
+    setVisionAnalysis(null);
+    setVisionError('');
+
+    const formData = new FormData();
+    if (file) formData.append('images', file);
+    formData.append('deviceType', deviceInfo.deviceType);
+    formData.append('brand', deviceInfo.brand);
+    formData.append('model', deviceInfo.model);
+    formData.append('problemDescription', described);
+    formData.append('problemType', deviceInfo.problemType);
+
+    // Keep the case's description in step with what was checked, so the estimate uses it too.
+    const device = { ...deviceInfo, problemDescription: described };
+    if (described !== (deviceInfo.problemDescription || '')) {
+      setDeviceInfo(device);
+      saveProgress({ problemDescription: described });
+    }
+
+    return uploadService
+      .uploadDamageImages(formData)
+      .then((response) => {
+        const analysis = response?.visionAnalysis;
+        if (!analysis?.findings?.length) {
+          setVisionError(
+            response?.aiAnalysisStatus?.note ||
+              (file ? 'The photo could not be analysed. Try a clearer, well-lit photo.' : 'Your description could not be analysed. Try adding a bit more detail.')
+          );
+          return;
+        }
+        const vision = {
+          label: analysis.label || (file ? file.name : 'Your description'),
+          aiSummary: analysis.aiSummary || '',
+          findings: analysis.findings,
+          fileName: file?.name || null,
+          described: described || null,
+        };
+        setVisionAnalysis(vision);
+        saveProgress({ vision });
+        fetchEstimate(device, analysis.findings);
+      })
+      .catch((err) => setVisionError(err?.message || 'The check could not be completed. Please try again.'))
+      .finally(() => setIsScanning(false));
+  };
+
   const handleCustomFileUpload = (e) => {
     const file = e?.target?.files?.[0];
     if (!file) return;
@@ -356,40 +417,36 @@ export const RepairAnalysis = () => {
     }
 
     setSelectedDamageImage(URL.createObjectURL(file));
-    setIsScanning(true);
-    setVisionAnalysis(null);
+    setSelectedDamageFile(file);
+    runCheck(file, description).finally(() => {
+      e.target.value = '';
+    });
+  };
+
+  const addProblem = (label) =>
+    setDescription((prev) => {
+      const t = prev.trim();
+      if (t.toLowerCase().includes(label.toLowerCase())) return prev;
+      return t ? `${t.replace(/[.,;]$/, '')}, ${label.toLowerCase()}` : label;
+    });
+
+  const problemType = deviceInfo.problemType;
+  const showPhoto = wantsPhoto(problemType);
+  const deviceSymptoms = getDeviceType(deviceInfo.deviceType).symptoms;
+  const problemChips =
+    problemType === 'software'
+      ? SOFTWARE_SYMPTOMS
+      : problemType === 'hardware'
+        ? deviceSymptoms
+        : [...deviceSymptoms, ...SOFTWARE_SYMPTOMS.filter((x) => !deviceSymptoms.includes(x))];
+  // A photo picked earlier is ignored once the user says it's a software problem.
+  const photoForCheck = showPhoto ? selectedDamageFile : null;
+
+  const chooseProblemType = (value) => {
+    if (value === problemType) return;
+    setDeviceInfo((prev) => ({ ...prev, problemType: value }));
+    saveProgress({ problemType: value });
     setVisionError('');
-
-    const formData = new FormData();
-    formData.append('images', file);
-    formData.append('deviceType', deviceInfo.deviceType);
-    formData.append('brand', deviceInfo.brand);
-    formData.append('model', deviceInfo.model);
-    formData.append('problemDescription', deviceInfo.problemDescription || '');
-
-    uploadService
-      .uploadDamageImages(formData)
-      .then((response) => {
-        const analysis = response?.visionAnalysis;
-        if (!analysis?.findings?.length) {
-          setVisionError(response?.aiAnalysisStatus?.note || 'The photo was uploaded but could not be analysed. Try a clearer, well-lit photo.');
-          return;
-        }
-        const vision = {
-          label: analysis.label || file.name,
-          aiSummary: analysis.aiSummary || '',
-          findings: analysis.findings,
-          fileName: file.name,
-        };
-        setVisionAnalysis(vision);
-        saveProgress({ vision });
-        fetchEstimate(deviceInfo, analysis.findings);
-      })
-      .catch((err) => setVisionError(err?.message || 'The photo could not be uploaded. Please try again.'))
-      .finally(() => {
-        setIsScanning(false);
-        e.target.value = '';
-      });
   };
 
   const handleQuoteFileUpload = (e) => {
@@ -505,7 +562,7 @@ export const RepairAnalysis = () => {
         <div className="min-w-0">
           <h2 className="text-[1.9rem] font-medium tracking-tight text-[#16201d]">Should you repair it?</h2>
           <p className="mt-1 text-slate-500">
-            Check the damage, review the shop&rsquo;s quote, then see whether repairing your{' '}
+            Check the problem, review the shop&rsquo;s quote, then see whether repairing your{' '}
             <span className="font-medium text-slate-700">
               {deviceInfo.brand} {deviceInfo.model}
             </span>{' '}
@@ -554,12 +611,28 @@ export const RepairAnalysis = () => {
       {activeTab === 'vision' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card className="p-6 sm:p-7">
-            <SectionHeading icon={ScanLine} title="Upload a photo of the damage" subtitle="A clear, well-lit photo works best." />
+            <SectionHeading
+              icon={ScanLine}
+              title={problemType === 'hardware' ? 'Show or describe the damage' : problemType === 'software' ? 'Describe the problem' : 'Show or describe the problem'}
+              subtitle={
+                problemType === 'hardware'
+                  ? 'A photo helps but isn\u2019t required. You can just describe the damage instead.'
+                  : problemType === 'software'
+                    ? 'No photo needed. Tell us what happens and when it started.'
+                    : 'A photo for visible damage, words for things a photo can\u2019t show, or both.'
+              }
+            />
 
+            <div className="mt-5">
+              <p className="mb-2 text-sm font-medium text-slate-700">Is it a hardware or software problem?</p>
+              <ProblemTypePicker value={problemType} onChange={chooseProblemType} compact />
+            </div>
+
+            {showPhoto && (
             <div className="mt-6">
               {selectedDamageImage ? (
                 <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-[#FAFBF9]">
-                  <div className="flex h-[300px] items-center justify-center sm:h-[320px]">
+                  <div className="flex h-[240px] items-center justify-center">
                     <img src={selectedDamageImage} alt={`Photo of the damaged ${noun}`} className="max-h-full max-w-full object-contain" />
                   </div>
 
@@ -587,18 +660,64 @@ export const RepairAnalysis = () => {
                   </div>
                 </div>
               ) : (
-                <label className="flex min-h-[300px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-[#FAFBF9] p-8 text-center transition hover:border-[#0d5b46]/50">
+                <label className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-[#FAFBF9] p-8 text-center transition hover:border-[#0d5b46]/50">
                   <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e3f1ec] text-[#0d5b46]">
                     <CloudUpload className="h-7 w-7" />
                   </span>
-                  <span className="text-[15px] font-medium text-slate-800">Choose a photo of your {noun}</span>
-                  <span className="text-sm text-slate-500">PNG, JPEG or WEBP, up to 10 MB</span>
+                  <span className="text-[15px] font-medium text-slate-800">Add a photo of your {noun} <span className="font-normal text-slate-400">(optional)</span></span>
+                  <span className="text-sm text-slate-500">Optional · PNG, JPEG or WEBP, up to 10 MB</span>
                   <span className={`${secondaryBtn} mt-1 py-2.5`}>Browse files</span>
                   <input type="file" accept="image/*" onChange={handleCustomFileUpload} className="hidden" />
                 </label>
               )}
             </div>
+            )}
 
+            <div className="mt-6">
+              <label htmlFor="problem-description" className="flex items-center gap-2 text-[15px] font-medium text-slate-800">
+                <PenLine className="h-4 w-4 text-[#0d5b46]" /> What&rsquo;s wrong?
+              </label>
+              <p className="mt-1 text-sm text-slate-500">
+                {problemType === 'hardware'
+                  ? 'Describe the damage, add a photo above, or both.'
+                  : 'Tap what applies, then say what happens and when it started.'}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {problemChips.map((label) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => addProblem(label)}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:border-[#0d5b46]/40 hover:bg-[#eef6f2] hover:text-[#0d4a3e]"
+                  >
+                    + {label}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                id="problem-description"
+                rows={4}
+                maxLength={2000}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={`e.g. My ${noun} only charges to 20% with the original charger, and the battery lasts about 10 minutes since a battery replacement last year.`}
+                className="mt-3 w-full resize-y rounded-2xl border border-slate-200 bg-[#FAFBF9] px-4 py-3 text-sm leading-relaxed text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#0d5b46]/50 focus:bg-white"
+              />
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-xs text-slate-400">
+                  {photoForCheck ? 'Your photo will be checked together with this.' : showPhoto ? 'A photo is optional but helps.' : 'No photo needed.'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => runCheck(photoForCheck, description)}
+                  disabled={isScanning || (!photoForCheck && description.trim().length < 5)}
+                  className={`${primaryBtn} disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {isScanning ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {visionAnalysis ? 'Check again' : 'Check my problem'}
+                </button>
+              </div>
+            </div>
           </Card>
 
           <Card className="flex flex-col p-6 sm:p-7">
@@ -608,14 +727,14 @@ export const RepairAnalysis = () => {
               {isScanning ? (
                 <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-3 text-center">
                   <LoaderCircle className="h-6 w-6 animate-spin text-[#0d5b46]" />
-                  <p className="text-sm text-slate-500">Checking your photo. This only takes a moment.</p>
+                  <p className="text-sm text-slate-500">Checking your {photoForCheck ? 'photo and description' : 'description'}. This only takes a moment.</p>
                 </div>
               ) : visionError ? (
                 <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-3 text-center">
                   <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-700">
                     <TriangleAlert className="h-6 w-6" />
                   </span>
-                  <p className="text-[15px] font-medium text-slate-800">Photo check didn&rsquo;t work</p>
+                  <p className="text-[15px] font-medium text-slate-800">The check didn&rsquo;t work</p>
                   <p className="max-w-xs text-sm text-slate-500">{visionError}</p>
                 </div>
               ) : visionAnalysis ? (
@@ -659,7 +778,7 @@ export const RepairAnalysis = () => {
 
                   <p className="flex items-start gap-2 text-xs leading-relaxed text-slate-500">
                     <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                    These findings are an AI estimate from a photo, not a definitive diagnosis. A technician should confirm them before any work.
+                    These findings are an AI estimate from your photo or description, not a definitive diagnosis. A technician should confirm them before any work.
                   </p>
                 </div>
               ) : (
@@ -667,8 +786,8 @@ export const RepairAnalysis = () => {
                   <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                     <Info className="h-6 w-6" />
                   </span>
-                  <p className="text-[15px] font-medium text-slate-800">No photo checked yet</p>
-                  <p className="max-w-xs text-sm text-slate-500">Upload a photo to see which parts look damaged and what they usually cost to fix.</p>
+                  <p className="text-[15px] font-medium text-slate-800">Nothing checked yet</p>
+                  <p className="max-w-xs text-sm text-slate-500">Add a photo or describe the problem to see the likely cause, the parts involved and what they usually cost to fix.</p>
                 </div>
               )}
             </div>

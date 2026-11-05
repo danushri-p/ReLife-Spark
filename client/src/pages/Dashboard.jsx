@@ -63,11 +63,19 @@ export const Dashboard = () => {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([assessmentService.list(user?.id, { status: 'COMPLETE' }), assessmentService.stats(user?.id)])
-      .then(([list, stats]) => !cancelled && setData({ loading: false, error: '', cases: list.assessments || [], stats }))
-      .catch((err) => !cancelled && setData({ loading: false, error: err?.message || 'Could not load your impact.', cases: [], stats: null }));
+    const load = () =>
+      Promise.all([assessmentService.list(user?.id, { status: 'COMPLETE' }), assessmentService.stats(user?.id)])
+        .then(([list, stats]) => !cancelled && setData({ loading: false, error: '', cases: list.assessments || [], stats }))
+        .catch((err) => !cancelled && setData({ loading: false, error: err?.message || 'Could not load your impact.', cases: [], stats: null }));
+    load();
+    // Refresh when the user comes back to this tab, so new decisions show up without a reload.
+    const onVisible = () => document.visibilityState === 'visible' && load();
+    window.addEventListener('focus', load);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', load);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [user?.id]);
 
