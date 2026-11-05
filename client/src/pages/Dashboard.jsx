@@ -171,7 +171,7 @@ export const Dashboard = () => {
           <p className="mt-1 text-sm text-slate-500">compared with buying new devices</p>
         </Card>
 
-        {/* CO2e */}
+        {/* New devices avoided */}
         <Card className="p-6 sm:p-7">
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2 text-[13px] uppercase tracking-[0.16em] text-slate-500">
@@ -366,10 +366,6 @@ export const Dashboard = () => {
               <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-slate-600">
                 <li>
                   Money kept is the price of a new device minus the repair quote, counted only when the recommendation was to repair.
-                </li>
-                <li>
-                  Most of a gadget&rsquo;s lifetime emissions come from making it, so every device repaired instead of replaced avoids
-                  most of the footprint of a new one. We count devices kept in use rather than guess a CO₂e figure.
                 </li>
               </ul>
             </div>

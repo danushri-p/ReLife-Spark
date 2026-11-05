@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import assessmentService from '../services/assessmentService';
+import { deviceNoun } from '../data/deviceTypes';
+import { formatINR } from '../utils/format';
 
 const AssistantAvatar = () => (
   <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#0d5b46] text-[#7fffd4]">
@@ -77,6 +80,34 @@ const timeLabel = (value) => {
   if (mins < 60) return `${mins} min ago`;
   if (mins < 24 * 60) return `${Math.round(mins / 60)} h ago`;
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+};
+
+/** Questions that help a real repair-or-replace decision, used when there is no case yet. */
+const GENERAL_SUGGESTIONS = [
+  'Is it worth repairing a device that is 3 years old?',
+  'What should a repair quote include before I agree to it?',
+  'Original vs third-party parts: what’s the real difference?',
+  'Will a local repair shop void my manufacturer warranty?',
+];
+
+/** Questions about the user's latest case: its device, fault, quote and stage. */
+const caseSuggestions = (a) => {
+  const noun = deviceNoun(a);
+  const name = [a.brand, a.model].filter(Boolean).join(' ') || `my ${noun}`;
+  const quote = a.quote?.total || a.repairCost || 0;
+  const fault = (a.vision?.findings || []).find((f) => !['Intact', 'Minor'].includes(f.severity))?.component;
+  const issue = String(a.problemDescription || '').split(/[.!?]/)[0].trim().toLowerCase();
+  const list = [
+    quote ? `Is ${formatINR(quote)} a fair price to repair my ${name}?` : `What does it usually cost to fix ${fault ? `the ${fault.toLowerCase()} on` : ''} a ${name}?`.replace('  ', ' '),
+    issue && issue.length <= 60 ? `My ${noun}: ${issue}. What could be causing it?` : `What usually fails first on a ${name}?`,
+    a.deviceAge
+      ? `My ${name} is ${a.deviceAge.toLowerCase().replace('+', ' or more')} old. Repair it or buy new?`
+      : `Should I repair or replace my ${name}?`,
+    a.warrantyStatus && !['Expired', 'Unknown'].includes(a.warrantyStatus)
+      ? `Will a third-party repair affect my ${a.brand || ''} warranty?`.replace('  ', ' ')
+      : `What should I ask the shop before they open my ${noun}?`,
+  ];
+  return list.filter(Boolean);
 };
 
 const MAX_PHOTOS = 3;
@@ -209,11 +240,19 @@ export const KnowledgeAssistant = () => {
     };
   }, [historyOpen]);
 
-  const promptSuggestions = [
-    { label: 'Can I replace the battery safely myself?', key: 'battery' },
-    { label: 'Does physical damage void my entire warranty?', key: 'warranty' },
-    { label: 'How to verify if a replacement screen is genuine OEM?', key: 'oem' },
-  ];
+  const [latestCase, setLatestCase] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    assessmentService
+      .list(userId, { limit: 1 })
+      .then((res) => !cancelled && setLatestCase(res.assessments?.[0] || null))
+      .catch(() => !cancelled && setLatestCase(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const promptSuggestions = (latestCase ? caseSuggestions(latestCase) : GENERAL_SUGGESTIONS).map((label) => ({ label }));
 
   const handleSendQuery = async (queryText) => {
     const attached = photos;
