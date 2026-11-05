@@ -7,7 +7,8 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  // The hosted backend sleeps when idle and can take ~50 s to wake up, so allow for that.
+  timeout: 60000,
 });
 
 // Response interceptor for consistent error handling

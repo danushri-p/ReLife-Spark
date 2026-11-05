@@ -20,12 +20,16 @@ const app = express();
 app.use(helmet());
 
 // Cross-Origin Resource Sharing
-const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+// CLIENT_URL can list several sites, comma-separated (e.g. the live site and a preview URL).
+const clientUrls = (process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((u) => u.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g. mobile apps, curl, Postman) or matching origin
-      if (!origin || origin === clientUrl || origin.startsWith('http://localhost:')) {
+      if (!origin || clientUrls.includes(origin) || origin.startsWith('http://localhost:')) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked request from origin: ${origin}`));
