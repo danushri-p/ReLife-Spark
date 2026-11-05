@@ -1,23 +1,21 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  BookOpen,
+  History as HistoryIcon,
+  SquarePen,
+  Trash2,
+  Camera,
+  ImagePlus,
+  X,
   FileText,
+  TriangleAlert,
   LoaderCircle,
   MessageCircleQuestion,
   SendHorizontal,
-  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import apiClient from '../services/api';
-
-const knowledgeSources = [
-  { name: 'Apple iPhone 13 / 14 / 15', detail: 'Self Service Repair manuals and calibration steps' },
-  { name: 'Samsung Galaxy S series', detail: 'AMOLED replacement and water-seal guides' },
-  { name: 'Google Pixel 7 / 8', detail: 'Display and fingerprint recalibration' },
-  { name: 'iFixit repairability guides', detail: 'Step-by-step disassembly and repair scores' },
-  { name: 'Warranty policies', detail: 'Apple, Samsung and Google warranty terms' },
-];
+import { useAuth } from '../context/AuthContext';
 
 const AssistantAvatar = () => (
   <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#0d5b46] text-[#7fffd4]">
@@ -25,53 +23,191 @@ const AssistantAvatar = () => (
   </span>
 );
 
-export const KnowledgeAssistant = () => {
-  const preloadedKnowledge = {
-    battery: {
-      text: 'According to manufacturer service specifications, lithium-ion battery replacement is considered a Moderate-difficulty operation. Crucial safety protocols must be observed: discharge the device below 25% charge before disassembly to prevent thermal runaway in the event of accidental pouch puncture. Softening the adhesive pull tabs with 90°C localized heat or 99% isopropyl alcohol is mandatory.',
-      sources: [
-        { title: 'Apple Official Self Service Repair Manual', page: 'Section 4.3: Battery Removal & Safety', similarity: '0.94' },
-        { title: 'iFixit Universal Smartphone Battery Protocol', page: 'Step 14: Adhesive De-bonding', similarity: '0.89' },
-      ],
-      difficulty: 'Moderate (3/5)',
-      tools: 'P2 Pentalobe, Suction Clamp, 99% Isopropyl Alcohol',
-    },
-    warranty: {
-      text: 'Standard manufacturer limited warranties (Apple, Samsung, Google) explicitly exclude accidental physical impacts, cracked glass, and liquid ingress. However, if third-party repair is performed by an independent shop, manufacturer warranty on unrelated sub-assemblies remains legally protected under the Magnuson-Moss Warranty Act, unless the third-party component directly damaged the system.',
-      sources: [
-        { title: 'Samsung Global Hardware Warranty Terms', page: 'Clause 6: Exclusions & Liquid Indicators', similarity: '0.96' },
-        { title: 'FTC Right to Repair Regulatory Framework', page: 'Section II: Third-Party Servicing Rights', similarity: '0.91' },
-      ],
-      difficulty: 'Informational',
-      tools: 'None',
-    },
-    oem: {
-      text: 'To distinguish genuine OEM displays from aftermarket alternatives: OEM panels utilize flexible COP (Chip on Plastic) OLED substrates with slim bottom bezels and achieve 1000-2000 nits peak brightness. Aftermarket copies commonly use rigid COG (Chip on Glass) or TFT-LCD, resulting in thicker chin bezels, 60Hz limit, lack of TrueTone calibration, and persistent "Unknown Part" system notifications.',
-      sources: [
-        { title: 'OEM Display Serialization & Cryptography Brief', page: 'Page 8: EEPROM IC Pairing', similarity: '0.93' },
-        { title: 'Smartphone Teardown Technical Journal', page: 'Comparative Analysis: OEM vs Incell LCD', similarity: '0.88' },
-      ],
-      difficulty: 'Inspection',
-      tools: 'Digital Calipers, Optical Lux Meter',
-    }
-  };
+/** Strips Markdown symbols (**bold**, * bullets, # headings) from a line of text. */
+const stripMarkdown = (line) =>
+  line
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/^\s*#{1,6}\s+/, '')
+    .replace(/[*_]{1,2}/g, '')
+    .trim();
 
-  const [messages, setMessages] = useState([
-    {
-      sender: 'assistant',
-      text: "Hi! I'm the ReLife-Spark Assistant. Ask me about a repair, a part or your warranty in plain words. My answers come from official repair manuals and warranty policies, and I'll show you where each answer comes from.",
-      sources: [
-        { title: 'Apple iPhone 15 Pro Service Guide', page: 'Section 4.2', similarity: '0.96' },
-        { title: 'Samsung Galaxy Display Service Guidelines', page: 'Page 18', similarity: '0.91' },
-      ],
-      timestamp: 'Just now',
-    },
-  ]);
+/** Turns a plain or Markdown answer into { summary, points } so it can be shown the same way. */
+const parsePlainText = (text) => {
+  const lines = String(text || '').split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const isBullet = (l) => /^([*\-•]|\d+[.)])\s+/.test(l);
+  const summary = lines.filter((l) => !isBullet(l)).map(stripMarkdown).join(' ');
+  const points = lines.filter(isBullet).map((l) => stripMarkdown(l.replace(/^([*\-•]|\d+[.)])\s+/, '')));
+  return { summary, points };
+};
+
+/** Normalises a server reply (structured, or older plain text) into the message shape the chat renders. */
+const WELCOME = {
+  sender: 'assistant',
+  summary: "Hi! I'm the ReLife-Spark Assistant. Ask me about a repair, a part or your warranty, and I'll give you a short, practical answer.",
+  points: [],
+  sources: [],
+  timestamp: '',
+};
+
+/** Remembers which saved chat was open, per user, so a reload continues it. */
+const chatKey = (userId) => `relife-spark:assistant-chat:${userId || 'demo'}`;
+const readOpenChat = (userId) => {
+  try {
+    return localStorage.getItem(chatKey(userId));
+  } catch {
+    return null;
+  }
+};
+const writeOpenChat = (userId, id) => {
+  try {
+    if (id) localStorage.setItem(chatKey(userId), id);
+    else localStorage.removeItem(chatKey(userId));
+  } catch {
+    /* storage blocked: the chat is still saved on the server */
+  }
+};
+
+const timeLabel = (value) => {
+  if (!value) return '';
+  const d = new Date(value);
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 24 * 60) return `${Math.round(mins / 60)} h ago`;
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+};
+
+const MAX_PHOTOS = 3;
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+
+/** A message saved on the server, in the shape the chat renders. Photos aren't stored, only their count. */
+const fromStored = (m) =>
+  m.sender === 'user'
+    ? { sender: 'user', text: m.text, photoCount: m.photoCount || 0, timestamp: timeLabel(m.createdAt) }
+    : { ...toAssistantMessage(m), timestamp: timeLabel(m.createdAt) };
+
+const toAssistantMessage = (reply) => {
+  const structured = reply?.summary
+    ? { summary: stripMarkdown(reply.summary), points: (reply.points || []).map(stripMarkdown).filter(Boolean) }
+    : parsePlainText(reply?.text);
+  return {
+    sender: 'assistant',
+    ...structured,
+    caution: reply?.caution ? stripMarkdown(reply.caution) : null,
+    sources: Array.isArray(reply?.sources) ? reply.sources : [],
+    timestamp: 'Just now',
+  };
+};
+
+export const KnowledgeAssistant = () => {
+  const { user } = useAuth();
+  const userId = user?.id || 'demo';
+  const [messages, setMessages] = useState([WELCOME]);
+  const [conversationId, setConversationId] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [chats, setChats] = useState({ loading: false, error: '', items: [] });
+  const historyRef = useRef(null);
 
   const location = useLocation();
   // Pre-filled when arriving from the Overview assistant box or the top-bar search
   const [inputQuery, setInputQuery] = useState(location.state?.prompt || '');
   const [loading, setLoading] = useState(false);
+  const [photos, setPhotos] = useState([]); // [{ file, url }] waiting to be sent
+  const [photoError, setPhotoError] = useState('');
+  const fileInputRef = useRef(null);
+  const objectUrls = useRef([]);
+
+  // Free the photo previews when leaving the page.
+  useEffect(() => () => objectUrls.current.forEach((u) => URL.revokeObjectURL(u)), []);
+
+  const addPhotos = (fileList) => {
+    setPhotoError('');
+    const files = Array.from(fileList || []);
+    const valid = files.filter((f) => PHOTO_TYPES.includes(f.type) && f.size <= 10 * 1024 * 1024);
+    if (valid.length < files.length) setPhotoError('Use JPEG, PNG, WEBP or HEIC photos under 10 MB.');
+    setPhotos((prev) => {
+      const room = MAX_PHOTOS - prev.length;
+      if (valid.length > room) setPhotoError(`You can attach up to ${MAX_PHOTOS} photos.`);
+      const added = valid.slice(0, Math.max(0, room)).map((file) => {
+        const url = URL.createObjectURL(file);
+        objectUrls.current.push(url);
+        return { file, url };
+      });
+      return [...prev, ...added];
+    });
+  };
+
+  const removePhoto = (url) => setPhotos((prev) => prev.filter((p) => p.url !== url));
+
+  const openChat = async (id) => {
+    setHistoryOpen(false);
+    try {
+      const res = await apiClient.get(`/assistant/conversations/${id}`, { params: { userId } });
+      setMessages([WELCOME, ...(res.conversation?.messages || []).map(fromStored)]);
+      setConversationId(id);
+      writeOpenChat(userId, id);
+    } catch {
+      // The saved chat is gone (deleted elsewhere): start fresh.
+      writeOpenChat(userId, null);
+      setConversationId(null);
+      setMessages([WELCOME]);
+    }
+  };
+
+  const startNewChat = () => {
+    setHistoryOpen(false);
+    setConversationId(null);
+    writeOpenChat(userId, null);
+    setMessages([WELCOME]);
+  };
+
+  const loadChats = async () => {
+    setChats((c) => ({ ...c, loading: true, error: '' }));
+    try {
+      const res = await apiClient.get('/assistant/conversations', { params: { userId } });
+      setChats({ loading: false, error: '', items: res.conversations || [] });
+    } catch (err) {
+      setChats({ loading: false, error: err?.message || 'Could not load your chats.', items: [] });
+    }
+  };
+
+  const deleteChat = async (id) => {
+    if (!window.confirm('Delete this chat? This can\u2019t be undone.')) return;
+    try {
+      await apiClient.delete(`/assistant/conversations/${id}`, { params: { userId } });
+      setChats((c) => ({ ...c, items: c.items.filter((x) => x._id !== id) }));
+      if (id === conversationId) startNewChat();
+    } catch (err) {
+      setChats((c) => ({ ...c, error: err?.message || 'Could not delete the chat.' }));
+    }
+  };
+
+  // Reopen the chat this user had open last time.
+  useEffect(() => {
+    const saved = readOpenChat(userId);
+    if (saved) openChat(saved);
+    else {
+      setConversationId(null);
+      setMessages([WELCOME]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Close the history panel on outside click / Escape.
+  useEffect(() => {
+    if (!historyOpen) return undefined;
+    const close = (e) => {
+      if (e.type === 'keydown' ? e.key === 'Escape' : !historyRef.current?.contains(e.target)) setHistoryOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [historyOpen]);
 
   const promptSuggestions = [
     { label: 'Can I replace the battery safely myself?', key: 'battery' },
@@ -80,64 +216,63 @@ export const KnowledgeAssistant = () => {
   ];
 
   const handleSendQuery = async (queryText) => {
-    if (!queryText.trim() || loading) return;
+    const attached = photos;
+    if ((!queryText.trim() && !attached.length) || loading) return;
 
     const userMessage = {
       sender: 'user',
       text: queryText.trim(),
+      photos: attached.map((p) => p.url),
       timestamp: 'Just now',
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInputQuery('');
+    setPhotos([]);
+    setPhotoError('');
     setLoading(true);
 
     try {
-      const response = await apiClient.post('/assistant/chat', {
-        message: queryText.trim(),
-        deviceContext: { platform: 'ReLife-Spark RAG Web' },
-      });
-
-      if (response && response.reply && response.reply.text && response.reply.text.length > 50) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            sender: 'assistant',
-            text: response.reply.text,
-            sources: response.reply.sources || [
-              { title: 'OEM Technical Service Manual', page: 'Service documentation', similarity: '0.92' }
-            ],
-            timestamp: 'Just now',
-          }
-        ]);
-        setLoading(false); // re-enable sending after a real reply
-        return;
+      // AI answers can take 20s+; the server falls back to its guides after 40s.
+      let response;
+      if (attached.length) {
+        const form = new FormData();
+        form.append('message', queryText.trim());
+        form.append('userId', userId);
+        if (conversationId) form.append('conversationId', conversationId);
+        attached.forEach((p) => form.append('photos', p.file));
+        response = await apiClient.post('/assistant/chat', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 90000,
+        });
+      } else {
+        response = await apiClient.post(
+          '/assistant/chat',
+          { message: queryText.trim(), userId, conversationId },
+          { timeout: 60000 }
+        );
       }
-      throw new Error('Fallback to local knowledge engine');
+
+      if (!response?.reply?.summary && !response?.reply?.text) throw new Error('Empty reply');
+      setMessages((prev) => [...prev, toAssistantMessage(response.reply)]);
+      if (response.conversationId) {
+        setConversationId(response.conversationId);
+        writeOpenChat(userId, response.conversationId);
+      }
     } catch (err) {
-      setTimeout(() => {
-        let matched = preloadedKnowledge.oem;
-        const lower = queryText.toLowerCase();
-
-        if (lower.includes('battery') || lower.includes('drain') || lower.includes('swell') || lower.includes('charge')) {
-          matched = preloadedKnowledge.battery;
-        } else if (lower.includes('warranty') || lower.includes('void') || lower.includes('water') || lower.includes('guarantee')) {
-          matched = preloadedKnowledge.warranty;
-        }
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            sender: 'assistant',
-            text: matched.text,
-            sources: matched.sources,
-            difficulty: matched.difficulty,
-            tools: matched.tools,
-            timestamp: 'Just now',
-          }
-        ]);
-        setLoading(false);
-      }, 600);
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'assistant',
+          summary: 'Sorry, I couldn’t reach the assistant just now. Please try again in a moment.',
+          points: [],
+          sources: [],
+          error: true,
+          timestamp: 'Just now',
+        },
+      ]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -166,8 +301,84 @@ export const KnowledgeAssistant = () => {
               <p className="text-sm font-medium text-[#16201d]">ReLife-Spark Assistant</p>
               <p className="flex items-center gap-1.5 text-xs text-slate-500">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#2feaa8]" />
-                Answers from repair manuals and warranty policies
+                Short, practical repair answers
               </p>
+            </div>
+
+            <div ref={historyRef} className="relative ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                onClick={startNewChat}
+                aria-label="New chat"
+                title="New chat"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-[#eef6f2] hover:text-[#0d4a3e]"
+              >
+                <SquarePen className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!historyOpen) loadChats();
+                  setHistoryOpen((o) => !o);
+                }}
+                aria-label="Chat history"
+                aria-expanded={historyOpen}
+                title="Chat history"
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-[#eef6f2] hover:text-[#0d4a3e] ${
+                  historyOpen ? 'bg-[#eef6f2] text-[#0d4a3e]' : 'text-slate-500'
+                }`}
+              >
+                <HistoryIcon className="h-4 w-4" />
+              </button>
+
+              {historyOpen && (
+                <div className="absolute right-0 top-full z-30 mt-2 w-[min(20rem,calc(100vw-3rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_40px_-20px_rgba(20,20,20,0.35)]">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                    <p className="text-sm font-medium text-[#16201d]">Your chats</p>
+                    <button type="button" onClick={startNewChat} className="text-xs font-medium text-[#0d4a3e] hover:underline">
+                      New chat
+                    </button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto p-1.5">
+                    {chats.loading ? (
+                      <p className="flex items-center gap-2 px-3 py-4 text-sm text-slate-500">
+                        <LoaderCircle className="h-4 w-4 animate-spin" /> Loading…
+                      </p>
+                    ) : chats.error ? (
+                      <p className="px-3 py-4 text-sm text-red-700">{chats.error}</p>
+                    ) : chats.items.length === 0 ? (
+                      <p className="px-3 py-4 text-sm text-slate-500">No saved chats yet. Your questions will appear here.</p>
+                    ) : (
+                      <ul>
+                        {chats.items.map((c) => (
+                          <li key={c._id} className="group flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openChat(c._id)}
+                              className={`min-w-0 flex-1 rounded-xl px-3 py-2 text-left transition hover:bg-[#eef6f2] ${
+                                c._id === conversationId ? 'bg-[#eef6f2]' : ''
+                              }`}
+                            >
+                              <span className="block truncate text-sm text-slate-800">{c.title}</span>
+                              <span className="block text-[11px] text-slate-400">
+                                {timeLabel(c.updatedAt)} · {Math.ceil((c.messageCount || 0) / 2)} question{c.messageCount > 2 ? 's' : ''}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteChat(c._id)}
+                              aria-label={`Delete chat: ${c.title}`}
+                              className="flex-shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -180,10 +391,26 @@ export const KnowledgeAssistant = () => {
                 return (
                   <div key={index} className="flex justify-end">
                     <div className="min-w-0 max-w-[85%] sm:max-w-[75%]">
-                      <div className="break-words rounded-2xl rounded-tr-md bg-[#0d5b46] px-4 py-3 text-sm leading-relaxed text-white">
-                        {msg.text}
-                      </div>
-                      <span className="mt-1 block px-1 text-right text-[11px] text-slate-400">{msg.timestamp}</span>
+                      {msg.photos?.length > 0 && (
+                        <div className="mb-1.5 flex flex-wrap justify-end gap-1.5">
+                          {msg.photos.map((url) => (
+                            <img key={url} src={url} alt="Attached photo" className="h-24 w-24 rounded-xl object-cover" />
+                          ))}
+                        </div>
+                      )}
+                      {!msg.photos?.length && msg.photoCount > 0 && (
+                        <div className="mb-1.5 flex justify-end">
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-500">
+                            <Camera className="h-3.5 w-3.5" /> {msg.photoCount} photo{msg.photoCount > 1 ? 's' : ''} sent
+                          </span>
+                        </div>
+                      )}
+                      {msg.text && (
+                        <div className="break-words rounded-2xl rounded-tr-md bg-[#0d5b46] px-4 py-3 text-sm leading-relaxed text-white">
+                          {msg.text}
+                        </div>
+                      )}
+                      {msg.timestamp && <span className="mt-1 block px-1 text-right text-[11px] text-slate-400">{msg.timestamp}</span>}
                     </div>
                   </div>
                 );
@@ -193,20 +420,29 @@ export const KnowledgeAssistant = () => {
                 <div key={index} className="flex gap-3">
                   <AssistantAvatar />
                   <div className="min-w-0 max-w-[85%] space-y-2 sm:max-w-[80%]">
-                    <div className="break-words rounded-2xl rounded-tl-md bg-[#eef6f2] px-4 py-3 text-sm leading-relaxed text-[#123d33]">
-                      {msg.text}
+                    <div
+                      className={`break-words rounded-2xl rounded-tl-md px-4 py-3 text-sm leading-relaxed ${
+                        msg.error ? 'bg-red-50 text-red-800' : 'bg-[#eef6f2] text-[#123d33]'
+                      }`}
+                    >
+                      {msg.summary && <p>{msg.summary}</p>}
 
-                      {msg.tools && (
-                        <div className="mt-3 space-y-1 border-t border-[#0d5b46]/10 pt-3 text-xs text-slate-600">
-                          <p>
-                            <span className="font-medium text-[#0d4a3e]">Tools needed:</span> {msg.tools}
-                          </p>
-                          {msg.difficulty && (
-                            <p>
-                              <span className="font-medium text-[#0d4a3e]">Difficulty:</span> {msg.difficulty}
-                            </p>
-                          )}
-                        </div>
+                      {msg.points?.length > 0 && (
+                        <ul className="mt-2.5 space-y-1.5">
+                          {msg.points.map((point, i) => (
+                            <li key={i} className="flex gap-2">
+                              <span className="mt-[0.55em] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#0d5b46]" />
+                              <span className="min-w-0">{point}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {msg.caution && (
+                        <p className="mt-3 flex gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+                          <TriangleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                          <span className="min-w-0">{msg.caution}</span>
+                        </p>
                       )}
                     </div>
 
@@ -219,25 +455,20 @@ export const KnowledgeAssistant = () => {
                           {msg.sources.map((src, i) => (
                             <span
                               key={i}
-                              title={`${src.title} (${src.page})`}
+                              title={src.page ? `${src.title} (${src.page})` : src.title}
                               className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600"
                             >
                               <span className="min-w-0 truncate">
                                 {src.title}
-                                <span className="text-slate-400"> · {src.page}</span>
+                                {src.page && <span className="text-slate-400"> · {src.page}</span>}
                               </span>
-                              {src.similarity && (
-                                <span className="flex-shrink-0 rounded-full bg-[#eef6f2] px-1.5 text-[10px] font-medium text-[#0d4a3e]">
-                                  {Math.round(Number(src.similarity) * 100)}% match
-                                </span>
-                              )}
                             </span>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    <span className="block px-1 text-[11px] text-slate-400">{msg.timestamp}</span>
+                    {msg.timestamp && <span className="block px-1 text-[11px] text-slate-400">{msg.timestamp}</span>}
                   </div>
                 </div>
               );
@@ -270,13 +501,53 @@ export const KnowledgeAssistant = () => {
               ))}
             </div>
 
+            {photos.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {photos.map((p) => (
+                  <div key={p.url} className="relative">
+                    <img src={p.url} alt="Photo to send" className="h-16 w-16 rounded-xl border border-slate-200 object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(p.url)}
+                      aria-label="Remove photo"
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-white shadow"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {photoError && <p className="mb-2 text-xs text-red-700">{photoError}</p>}
+
             <form
               onSubmit={handleSubmit}
-              className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white py-2 pl-4 pr-2 focus-within:border-[#0d5b46]/50"
+              className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white py-2 pl-2 pr-2 focus-within:border-[#0d5b46]/50"
             >
               <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  addPhotos(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading || photos.length >= MAX_PHOTOS}
+                aria-label="Add a photo"
+                title="Add a photo"
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-[#0d5b46] transition hover:bg-[#eef6f2] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ImagePlus className="h-5 w-5" />
+              </button>
+              <input
                 type="text"
-                placeholder="Ask about a repair, a part or your warranty…"
+                placeholder={photos.length ? 'Add a question about your photo (optional)…' : 'Ask about a repair, a part or your warranty…'}
                 aria-label="Ask the assistant"
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
@@ -285,7 +556,7 @@ export const KnowledgeAssistant = () => {
               <button
                 type="submit"
                 aria-label="Send"
-                disabled={!inputQuery.trim() || loading}
+                disabled={(!inputQuery.trim() && !photos.length) || loading}
                 className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#0d5b46] text-white transition hover:bg-[#0b4a3a] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
@@ -315,38 +586,6 @@ export const KnowledgeAssistant = () => {
             </div>
           </section>
 
-          {/* Sources */}
-          <section className="rounded-[28px] border border-slate-200/70 bg-white p-6">
-            <h3 className="flex items-center gap-2 text-lg font-medium text-[#16201d]">
-              <BookOpen className="h-5 w-5 text-[#0d5b46]" /> Where answers come from
-            </h3>
-            <p className="mt-1 text-sm text-slate-500">Official repair manuals, repair guides and warranty terms.</p>
-            <ul className="mt-4 space-y-3">
-              {knowledgeSources.map((s) => (
-                <li key={s.name} className="flex gap-3">
-                  <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#2feaa8]" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800">{s.name}</p>
-                    <p className="text-xs text-slate-500">{s.detail}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {/* Honesty note */}
-          <section className="relative overflow-hidden rounded-[28px] bg-[#0d2f27] p-6 text-white">
-            <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-[#2feaa8]/15 blur-3xl" />
-            <div className="relative">
-              <div className="flex items-center gap-2 text-[13px] uppercase tracking-[0.16em] text-[#7fffd4]">
-                <ShieldCheck className="h-4 w-4" /> No guessing
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-white/75">
-                If the manuals don&rsquo;t cover a repair step, the assistant tells you so instead of making something up.
-                For anything risky, check with a qualified repair shop.
-              </p>
-            </div>
-          </section>
         </aside>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
 import { Check, CircleAlert, LoaderCircle, LockKeyhole, ArrowRight } from 'lucide-react';
 import { useAuth, GOOGLE_CLIENT_ID } from '../context/AuthContext';
@@ -19,12 +19,19 @@ const GoogleLogo = () => (
   </svg>
 );
 
+/** Only follow in-app paths, and never bounce back to the auth pages themselves. */
+const safeRedirect = (from) => {
+  if (typeof from !== 'string' || !from.startsWith('/') || from.startsWith('//')) return '/app';
+  const path = from.split(/[?#]/)[0];
+  return ['/', '/login', '/signup'].includes(path) ? '/app' : from;
+};
+
 export const Login = () => {
-  const { user, loading, signInWithGoogle, signInDemo, googleEnabled } = useAuth();
+  const { user, loading, signInWithGoogle, signInDemo, signOut, googleEnabled } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isSignup = location.pathname === '/signup';
-  const redirectTo = location.state?.from || '/app';
+  const redirectTo = safeRedirect(location.state?.from);
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -35,7 +42,8 @@ export const Login = () => {
     navigate(redirectTo, { replace: true });
   };
 
-  if (!loading && user && !submitting) return <Navigate to={redirectTo} replace />;
+  // Already signed in (e.g. came from a home-page button): offer to continue instead of a fresh sign-in.
+  const signedIn = !loading && Boolean(user) && !submitting;
 
   const handleCredential = (credential) => {
     setError('');
@@ -61,13 +69,33 @@ export const Login = () => {
             {isSignup ? 'Create your ReLife-Spark account' : 'Sign in to ReLife-Spark'}
           </h1>
           <p className="mt-3 text-[15px] leading-relaxed text-slate-600">
-            {isSignup
+            {signedIn
+              ? 'You are already signed in. Continue, or switch to a different account.'
+              : isSignup
               ? 'Sign up with your Google account. No new password to remember.'
               : 'Continue with the Google account you used before.'}
           </p>
 
           <div className="mt-9">
-            {googleEnabled ? (
+            {signedIn ? (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => navigate(redirectTo, { replace: true })}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#0d5b46] px-4 text-[15px] font-medium text-white transition hover:bg-[#0a4a39]"
+                >
+                  <span className="truncate">Continue as {user.name || user.email}</span>
+                  <ArrowRight className="h-4 w-4 flex-shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="flex h-11 w-full items-center justify-center rounded-md border border-slate-200 bg-white text-[15px] font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Use a different account
+                </button>
+              </div>
+            ) : googleEnabled ? (
               <div className={`relative flex justify-center ${submitting ? 'pointer-events-none opacity-60' : ''}`}>
                 <GoogleSignInButton
                   clientId={GOOGLE_CLIENT_ID}
@@ -119,7 +147,7 @@ export const Login = () => {
             )}
           </div>
 
-          <p className="mt-6 text-center text-sm text-slate-600">
+          <p className={`mt-6 text-center text-sm text-slate-600 ${signedIn ? 'hidden' : ''}`}>
             {isSignup ? 'Already have an account? ' : 'New to ReLife-Spark? '}
             <Link
               to={isSignup ? '/login' : '/signup'}

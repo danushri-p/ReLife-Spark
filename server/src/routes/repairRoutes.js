@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { analyzeRepairDecision } from '../controllers/repairController.js';
+import { analyzeRepairDecision, estimateRepair } from '../controllers/repairController.js';
 
 const router = Router();
 
 // POST /api/repair/analyze
 router.post('/analyze', analyzeRepairDecision);
 
-export default router;
+// POST /api/repair/estimate
+router.post('/estimate', estimateRepair);
 
+export default router;

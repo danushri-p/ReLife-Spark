@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { DEVICE_TYPE_VALUES, DEFAULT_DEVICE_TYPE } from '../config/deviceTypes.js';
 
 const assessmentSchema = new mongoose.Schema(
     {
@@ -6,11 +7,17 @@ const assessmentSchema = new mongoose.Schema(
             type: String,
             default: 'demo',
             trim: true,
+            index: true,
         },
         deviceId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Device',
             default: null,
+        },
+        deviceType: {
+            type: String,
+            enum: DEVICE_TYPE_VALUES,
+            default: DEFAULT_DEVICE_TYPE,
         },
         brand: {
             type: String,
@@ -84,6 +91,32 @@ const assessmentSchema = new mongoose.Schema(
                 note: { type: String, default: '' },
             },
         ],
+        /** IN_PROGRESS until the user saves a decision; COMPLETE afterwards. */
+        status: {
+            type: String,
+            enum: ['IN_PROGRESS', 'COMPLETE'],
+            default: 'IN_PROGRESS',
+            index: true,
+        },
+        /** Photo damage check: { label, aiSummary, findings: [{ component, severity, confidence, estCost, note }] } */
+        vision: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
+        /** Shop quote in rupees: { parts, labour, diagnostic, tax, total, shopName, fileName } */
+        quote: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
+        /** Market estimate: { typicalRepairCost, typicalRepairRange, newPhonePrice (price of a new replacement device), newPhoneLabel, repairability, questions, source } */
+        estimate: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
+        completedAt: {
+            type: Date,
+            default: null,
+        },
         metadata: {
             type: mongoose.Schema.Types.Mixed,
             default: {},

@@ -1,16 +1,25 @@
 import mongoose from 'mongoose';
+import { DEVICE_TYPE_VALUES, DEFAULT_DEVICE_TYPE } from '../config/deviceTypes.js';
 
 const deviceSchema = new mongoose.Schema(
   {
+    deviceType: {
+      type: String,
+      enum: {
+        values: DEVICE_TYPE_VALUES,
+        message: '{VALUE} is not a supported device type',
+      },
+      default: DEFAULT_DEVICE_TYPE,
+    },
     brand: {
       type: String,
-      required: [true, 'Smartphone brand is required'],
+      required: [true, 'Device brand is required'],
       trim: true,
       maxlength: [50, 'Brand name cannot exceed 50 characters'],
     },
     model: {
       type: String,
-      required: [true, 'Smartphone model is required'],
+      required: [true, 'Device model is required'],
       trim: true,
       maxlength: [100, 'Model name cannot exceed 100 characters'],
     },

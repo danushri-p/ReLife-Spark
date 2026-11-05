@@ -25,7 +25,7 @@ const storage = multer.diskStorage({
   },
 });
 
-// File filter for smartphone damage images
+// File filter for device damage images
 const imageFileFilter = (req, file, cb) => {
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
   if (allowedMimeTypes.includes(file.mimetype)) {

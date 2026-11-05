@@ -1,5 +1,6 @@
 import Device from '../models/Device.js';
 import mongoose from 'mongoose';
+import { normalizeDeviceType } from '../config/deviceTypes.js';
 
 /**
  * Submit device information
@@ -7,7 +8,7 @@ import mongoose from 'mongoose';
  */
 export const createDevice = async (req, res, next) => {
   try {
-    const { brand, model, deviceAge, condition, warrantyStatus, problemDescription } = req.body;
+    const { deviceType, brand, model, deviceAge, condition, warrantyStatus, problemDescription } = req.body;
 
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({
@@ -18,6 +19,7 @@ export const createDevice = async (req, res, next) => {
     }
 
     const newDevice = await Device.create({
+      deviceType: normalizeDeviceType(deviceType),
       brand,
       model,
       deviceAge,

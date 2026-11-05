@@ -1,6 +1,8 @@
+import geminiService from '../services/geminiService.js';
+
 /**
- * Handle upload of repair quotations (PDFs or images)
- * POST /api/quotes/upload
+ * Handle upload of repair quotations (PDFs or images) and extract the amounts with Gemini.
+ * POST /api/quotes/upload  (multipart: quotes[], optional deviceType, brand, model)
  */
 export const uploadQuoteDocument = async (req, res, next) => {
   try {
@@ -18,21 +20,28 @@ export const uploadQuoteDocument = async (req, res, next) => {
       filename: file.filename,
       size: `${(file.size / 1024).toFixed(1)} KB`,
       mimetype: file.mimetype,
-      path: file.path,
     }));
+
+    const { deviceType, brand, model } = req.body || {};
+    const extraction = await geminiService.extractQuote(
+      files.map((file) => file.path),
+      { deviceType: deviceType || undefined, brand: brand || undefined, model: model || undefined }
+    );
 
     res.status(200).json({
       success: true,
-      message: 'Repair quotation document uploaded successfully.',
+      message: extraction.success
+        ? 'Quote uploaded and the amounts were read automatically. Check them before continuing.'
+        : 'Quote uploaded, but the amounts could not be read automatically. Please enter them yourself.',
       filesReceived: uploadedFiles.length,
       files: uploadedFiles,
       quotationExtractionStatus: {
-        status: 'READY_FOR_EXTRACTION',
-        note: 'Quotation files have been accepted and are ready for parsing or human verification.',
+        status: extraction.success ? 'EXTRACTED' : 'MANUAL_ENTRY_NEEDED',
+        note: extraction.success ? null : extraction.error,
       },
+      quote: extraction.success ? extraction.quote : null,
     });
   } catch (error) {
     next(error);
   }
 };
-
