@@ -29,12 +29,8 @@ export const Avatar = ({ user, className = 'h-8 w-8 text-xs' }) =>
     </span>
   );
 
-/** Spark logo mark: a lime square with a black dot. */
-const Mark = () => (
-  <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-[#141414]">
-    <span className="h-2.5 w-2.5 rounded-full bg-[#0d5b46]" />
-  </span>
-);
+/** ReLife-Spark logo mark. */
+const Mark = () => <img src="/logo.png" alt="" className="h-9 w-auto flex-shrink-0 object-contain" />;
 
 const AccountMenu = ({ user, onSignOut }) => {
   const [open, setOpen] = useState(false);

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Gauge, LogOut, LayoutDashboard, UserRound, ChevronDown } from 'lucide-react';
+import { ArrowUpRight, LogOut, LayoutDashboard, UserRound, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Avatar = ({ user, size = 'h-9 w-9' }) =>
@@ -112,9 +112,7 @@ export const Navbar = () => {
         
         {/* Left Brand Identity (Exact from Screenshot) */}
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-11 h-11 rounded-lg bg-[#0d5b46] flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform flex-shrink-0">
-            <Gauge className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.png" alt="" className="h-11 w-auto flex-shrink-0 object-contain transition-transform group-hover:scale-105" />
           <div>
             <div className="flex items-center gap-1.5 leading-none">
               <span className="font-medium text-base sm:text-lg text-slate-900">
