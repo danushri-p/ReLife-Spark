@@ -21,8 +21,9 @@ app.use(helmet());
 
 // Cross-Origin Resource Sharing
 // CLIENT_URL can list several sites, comma-separated (e.g. the live site and a preview URL).
-const clientUrls = (process.env.CLIENT_URL || 'http://localhost:5173')
-  .split(',')
+// The deployed sites are always allowed, on top of whatever CLIENT_URL adds.
+const DEPLOYED_SITES = ['https://re-life-spark.vercel.app'];
+const clientUrls = [...DEPLOYED_SITES, ...(process.env.CLIENT_URL || 'http://localhost:5173').split(',')]
   .map((u) => u.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 app.use(

@@ -1,6 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// The live backend. A production build never talks to localhost, even if the host's settings say so.
+const LIVE_API_URL = 'https://relife-spark.onrender.com/api';
+const configuredUrl = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL =
+  import.meta.env.PROD && (!configuredUrl || configuredUrl.includes('localhost'))
+    ? LIVE_API_URL
+    : configuredUrl || 'http://localhost:5000/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
