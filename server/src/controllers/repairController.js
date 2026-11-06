@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Assessment from '../models/Assessment.js';
 import geminiService from '../services/geminiService.js';
 import { deviceNoun, normalizeDeviceType } from '../config/deviceTypes.js';
+import { searchKnowledgeBase } from '../services/knowledgeBaseService.js';
 
 /* ───────── scoring (shared by /repair/analyze and saving an assessment) ───────── */
 
@@ -185,11 +186,99 @@ export const estimateRepair = async (req, res, next) => {
         newPhonePrice,
         newPhoneLabel: estimate?.newPhoneLabel ?? null,
         repairability: estimate?.repairability ?? null,
+        lineRanges: estimate?.lineRanges ?? null,
         questions: estimate?.questions ?? [],
       },
       community,
       note: estimate ? null : `AI estimate unavailable: ${ai.error}`,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/* ───────── "Why this verdict": explained from the repair guides (RAG), with sources ───────── */
+
+const VERDICT_WORDS = { REPAIR: 'repair worth fixing', EITHER: 'repair or replacement trade-off', REPLACE: 'replacement replace upgrade' };
+
+const plainText = (v) => String(v ?? '').replace(/[*_#`]+/g, '').replace(/\s+/g, ' ').trim();
+
+/**
+ * Explains a verdict the score already decided. The guides are retrieved for this device, fault and verdict,
+ * and every point names the guide it came from. The AI never changes the verdict or the numbers.
+ * POST /api/repair/explain  { verdict, score, deviceType, brand, model, problemDescription, warrantyStatus, deviceAge,
+ *                             condition, repairCost, replacementCost, factors: [{ label, score, weight, note }] }
+ */
+export const explainVerdict = async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    const verdict = ['REPAIR', 'EITHER', 'REPLACE'].includes(b.verdict) ? b.verdict : null;
+    if (!verdict) return res.status(400).json({ success: false, message: 'A verdict (REPAIR, EITHER or REPLACE) is required.' });
+
+    const noun = deviceNoun(b.deviceType);
+    const query = [b.problemDescription, VERDICT_WORDS[verdict], b.warrantyStatus, 'repair vs replacement decision', noun]
+      .filter(Boolean)
+      .join(' ');
+    const guides = searchKnowledgeBase(query, 3);
+    const sources = guides.map((g, i) => ({ id: i + 1, title: g.title, source: g.source, page: g.page }));
+
+    const factors = Array.isArray(b.factors) ? b.factors.slice(0, 6) : [];
+    let reply = null;
+
+    if (geminiService.isConfigured() && guides.length) {
+      const prompt = `
+        You explain a repair decision to a customer in India. The decision is already made by a scoring formula:
+        verdict ${verdict}, Repair Score ${Number(b.score) || 0}/100. Do not change the verdict or any number.
+
+        Device: ${[b.brand, b.model].filter(Boolean).join(' ')} (${noun}), age ${b.deviceAge || 'unknown'}, condition ${b.condition || 'unknown'},
+        warranty ${b.warrantyStatus || 'unknown'}. Problem: ${b.problemDescription || 'not described'}.
+        Repair quote ₹${Number(b.repairCost) || 0}, new ${noun} ₹${Number(b.replacementCost) || 0}.
+        Score factors: ${JSON.stringify(factors)}
+
+        Repair guides (cite them by number):
+        ${guides.map((g, i) => `[${i + 1}] ${g.title} (${g.source}, ${g.page}): ${g.summary} ${g.content}`).join('\n')}
+
+        Reply with JSON only:
+        {
+          "summary": "one sentence (max 30 words) on why this verdict fits",
+          "points": [{ "text": "one practical sentence (max 25 words)", "source": 1 }]
+        }
+        Give 3 points. Each point must be supported by the guide it cites ("source" is that guide's number).
+        Plain text only, no Markdown, no asterisks. Use ₹ for money.
+      `;
+      const result = await Promise.race([
+        geminiService.generateJson([prompt]),
+        new Promise((resolve) => setTimeout(() => resolve(null), 30000)),
+      ]);
+      const d = result?.success ? result.data : null;
+      if (d?.summary && Array.isArray(d.points)) {
+        const points = d.points
+          .map((p) => ({ text: plainText(p?.text), source: Number(p?.source) }))
+          .filter((p) => p.text && sources.some((s) => s.id === p.source))
+          .slice(0, 4);
+        if (points.length) reply = { summary: plainText(d.summary), points, source: 'ai' };
+      }
+    }
+
+    // Without AI: the strongest factors, each paired with the closest guide's own advice.
+    if (!reply) {
+      const ranked = [...factors].sort((a, z) => Math.abs((z.score ?? 50) - 50) * (z.weight ?? 1) - Math.abs((a.score ?? 50) - 50) * (a.weight ?? 1));
+      reply = {
+        summary:
+          verdict === 'REPAIR'
+            ? `Repair scores ${b.score}/100: fixing this ${noun} is the better value.`
+            : verdict === 'REPLACE'
+              ? `Repair scores ${b.score}/100: replacing this ${noun} is the better value.`
+              : `Repair scores ${b.score}/100: either choice is reasonable, so compare carefully.`,
+        points: guides.slice(0, 3).map((g, i) => ({
+          text: plainText(`${ranked[i] ? `${ranked[i].label}: ${ranked[i].note}. ` : ''}${g.summary}`),
+          source: i + 1,
+        })),
+        source: 'guides',
+      };
+    }
+
+    res.status(200).json({ success: true, verdict, ...reply, sources });
   } catch (error) {
     next(error);
   }

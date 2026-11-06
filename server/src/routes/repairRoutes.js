@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { analyzeRepairDecision, estimateRepair } from '../controllers/repairController.js';
+import { analyzeRepairDecision, estimateRepair, explainVerdict } from '../controllers/repairController.js';
 
 const router = Router();
 
@@ -8,5 +8,8 @@ router.post('/analyze', analyzeRepairDecision);
 
 // POST /api/repair/estimate
 router.post('/estimate', estimateRepair);
+
+// POST /api/repair/explain  (why this verdict, with cited repair guides)
+router.post('/explain', explainVerdict);
 
 export default router;
