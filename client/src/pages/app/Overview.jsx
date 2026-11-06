@@ -231,9 +231,12 @@ export const Overview = () => {
                 {repairCost > 0 && replaceCost > 0 && (
                   <>
                     <ReceiptRow label="Repair costs" value={`${Math.round((repairCost / replaceCost) * 100)}% of new`} />
-                    <div className="pt-2">
-                      <ReceiptRow label="You keep" value={formatINR(keep)} strong />
-                    </div>
+                    {/* Replacing saves nothing, so the "kept" line only makes sense when repair is on the table. */}
+                    {active.verdict !== 'REPLACE' && (
+                      <div className="pt-2">
+                        <ReceiptRow label={active.verdict === 'REPAIR' ? 'You keep' : 'Saved if you repair'} value={formatINR(keep)} strong />
+                      </div>
+                    )}
                   </>
                 )}
               </div>

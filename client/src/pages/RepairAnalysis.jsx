@@ -1090,10 +1090,18 @@ export const RepairAnalysis = () => {
                     <p className="text-xs text-white/60">New {noun}</p>
                     <p className="mt-0.5 text-xl font-medium tabular-nums">{formatINR(replacementPrice)}</p>
                   </div>
-                  <div className="min-w-0 rounded-2xl border border-[#2feaa8]/30 bg-[#2feaa8]/10 px-4 py-3">
-                    <p className="text-xs text-[#7fffd4]">You keep</p>
-                    <p className="mt-0.5 text-xl font-medium tabular-nums text-[#7fffd4]">{formatINR(financialSavings)}</p>
-                  </div>
+                  {currentRec.verdict === 'REPLACE' ? (
+                    // Replacing saves nothing, so show why: how much of a new device the repair would eat up.
+                    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
+                      <p className="text-xs text-white/60">Repair costs</p>
+                      <p className="mt-0.5 text-xl font-medium tabular-nums">{Math.round(costRatio)}% of new</p>
+                    </div>
+                  ) : (
+                    <div className="min-w-0 rounded-2xl border border-[#2feaa8]/30 bg-[#2feaa8]/10 px-4 py-3">
+                      <p className="text-xs text-[#7fffd4]">{currentRec.verdict === 'REPAIR' ? 'You keep' : 'Saved if you repair'}</p>
+                      <p className="mt-0.5 text-xl font-medium tabular-nums text-[#7fffd4]">{formatINR(financialSavings)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
