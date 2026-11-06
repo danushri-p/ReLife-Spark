@@ -15,6 +15,18 @@ const normalizeFinding = (finding) => {
   return { ...finding, confidence: Math.round(Math.min(100, Math.max(0, pct))) };
 };
 
+/** { parts, labour, diagnostic } → each a [low, high] rupee range, or null when the model gave nothing usable. */
+const toLineRanges = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const num = (v) => Math.max(0, Math.round(Number(String(v ?? 0).replace(/[^\d.]/g, '')) || 0));
+  const out = {};
+  for (const key of ['parts', 'labour', 'diagnostic']) {
+    const r = Array.isArray(raw[key]) ? raw[key].map(num).slice(0, 2) : null;
+    if (r && r.length === 2 && r[1] >= r[0]) out[key] = r;
+  }
+  return out.parts ? out : null;
+};
+
 class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || '';
@@ -310,6 +322,7 @@ class GeminiService {
         "newPhonePrice": 0,
         "newPhoneLabel": "the replacement you priced, e.g. same model new, or its current successor",
         "repairability": 70,
+        "lineRanges": { "parts": [0, 0], "labour": [0, 0], "diagnostic": [0, 0] },
         "questions": [{ "q": "question to ask the repair shop", "reason": "why it matters" }]
       }
 
@@ -318,6 +331,8 @@ class GeminiService {
       "newPhonePrice" is what buying this model (or its nearest current equivalent) new costs in India today,
       for the same kind of device (e.g. a laptop for a laptop). "newPhoneLabel" names that replacement.
       "repairability" is 0-100 for how easy and economical this model is to repair (parts availability, design).
+      "lineRanges" gives the usual [low, high] price, before GST, that an independent Indian shop charges for each line
+      of this repair: the replacement parts, the labour, and the inspection/diagnostic fee ([0, 0] if shops usually waive it).
       Give 3-4 questions specific to this model and fault.
     `;
     const result = await this.generateJson([prompt]);
@@ -335,6 +350,7 @@ class GeminiService {
         newPhonePrice: num(d.newPhonePrice) || null,
         newPhoneLabel: d.newPhoneLabel || null,
         repairability: Number.isFinite(Number(d.repairability)) ? Math.min(100, Math.max(0, Math.round(Number(d.repairability)))) : null,
+        lineRanges: toLineRanges(d.lineRanges),
         questions: Array.isArray(d.questions)
           ? d.questions.filter((x) => x && x.q).slice(0, 5).map((x) => ({ q: String(x.q), reason: String(x.reason || '') }))
           : [],

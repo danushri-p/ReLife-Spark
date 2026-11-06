@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   Check,
   CircleCheck,
   CloudUpload,
@@ -26,6 +27,34 @@ import { SOFTWARE_SYMPTOMS, normalizeProblemType, wantsPhoto } from '../data/pro
 import ProblemTypePicker from '../components/app/ProblemTypePicker';
 import uploadService from '../services/uploadService';
 import repairService from '../services/repairService';
+
+/* ───────── quote fairness (plain code, no AI) ───────── */
+
+const GST_RATE = 0.18;
+
+/** Fair up to the usual high price, High up to 25% above it, Overpriced beyond that. */
+const judgeLine = (amount, range) => {
+  if (!amount || !range) return null;
+  const [low, high] = range;
+  if (amount <= high) return { level: 'fair', label: amount < low ? 'Below usual' : 'Fair' };
+  if (amount <= high * 1.25) return { level: 'high', label: 'High' };
+  return { level: 'over', label: 'Overpriced' };
+};
+
+const FLAG_STYLE = {
+  fair: 'bg-[#e3f1ec] text-[#0d5b46]',
+  high: 'bg-amber-100 text-amber-800',
+  over: 'bg-red-50 text-red-700',
+};
+const FLAG_DOT = { fair: 'bg-[#0d5b46]', high: 'bg-amber-500', over: 'bg-red-600' };
+
+const FlagPill = ({ flag }) =>
+  flag ? (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${FLAG_STYLE[flag.level]}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${FLAG_DOT[flag.level]}`} aria-hidden="true" />
+      {flag.label}
+    </span>
+  ) : null;
 
 /* ───────── local building blocks ───────── */
 
@@ -152,6 +181,18 @@ export const RepairAnalysis = () => {
   const isOverpriced = Boolean(marketBenchmarkAverage) && priceDifference > priceTolerance;
   const isFair = Boolean(marketBenchmarkAverage) && Math.abs(priceDifference) <= priceTolerance;
 
+  // Each quote line against the usual price for this model and fault. GST is checked against 18% of the rest.
+  const lineRanges = estimate?.lineRanges || null;
+  const quoteBase = quoteParts + quoteLabor + quoteDiagnostic;
+  const gstRange = quoteBase > 0 ? [0, Math.round(quoteBase * GST_RATE * 1.1) + 100] : null;
+  const lineChecks = {
+    parts: { flag: judgeLine(quoteParts, lineRanges?.parts), range: lineRanges?.parts },
+    labour: { flag: judgeLine(quoteLabor, lineRanges?.labour), range: lineRanges?.labour },
+    diagnostic: { flag: judgeLine(quoteDiagnostic, lineRanges?.diagnostic), range: lineRanges?.diagnostic },
+    tax: { flag: judgeLine(quoteTax, gstRange), range: gstRange, isTax: true },
+  };
+  const flaggedLines = Object.values(lineChecks).filter((c) => c.flag && c.flag.level !== 'fair').length;
+
   // Used when no model-specific questions could be generated.
   const genericQuestions = [
     {
@@ -275,6 +316,36 @@ export const RepairAnalysis = () => {
     { label: 'Overall condition', weight: 10, score: scoreFactorCondition, note: deviceInfo.condition },
   ];
 
+  // "Why this verdict": explained from the repair guides with sources, refreshed when the numbers settle.
+  const [explanation, setExplanation] = useState({ loading: false, error: '', data: null });
+  const explainSeq = useRef(0);
+  useEffect(() => {
+    if (activeTab !== 'decision' || !decisionReady) return undefined;
+    const seq = ++explainSeq.current;
+    const timer = setTimeout(() => {
+      setExplanation((e) => ({ ...e, loading: true, error: '' }));
+      repairService
+        .explain({
+          verdict: currentRec.verdict,
+          score: decisionScore,
+          deviceType: deviceInfo.deviceType,
+          brand: deviceInfo.brand,
+          model: deviceInfo.model,
+          problemDescription: deviceInfo.problemDescription,
+          warrantyStatus: deviceInfo.warrantyStatus,
+          deviceAge: deviceInfo.deviceAge,
+          condition: deviceInfo.condition,
+          repairCost: customRepairCost,
+          replacementCost: replacementPrice,
+          factors: factors.map(({ label, weight, score, note }) => ({ label, weight, score, note })),
+        })
+        .then((res) => seq === explainSeq.current && setExplanation({ loading: false, error: '', data: res }))
+        .catch((err) => seq === explainSeq.current && setExplanation({ loading: false, error: err?.message || 'Could not load the explanation.', data: null }));
+    }, 900);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, decisionReady, currentRec.verdict, decisionScore, customRepairCost, replacementPrice, deviceInfo.id]);
+
   /** Saves part of the case; failures are shown but don't block the flow. */
   const saveProgress = (patch) => {
     if (!deviceInfo.id) return Promise.resolve();
@@ -339,7 +410,7 @@ export const RepairAnalysis = () => {
         }
         setActiveTab(a.status === 'COMPLETE' || a.quote?.total ? 'decision' : a.vision?.findings?.length ? 'quote' : 'vision');
         setCaseState({ loading: false, error: '' });
-        if (!a.estimate) fetchEstimate(a, a.vision?.findings);
+        if (!a.estimate?.lineRanges) fetchEstimate(a, a.vision?.findings);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -834,15 +905,18 @@ export const RepairAnalysis = () => {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[
-                  { id: 'quote-parts', label: 'Replacement parts (₹)', value: quoteParts, set: setQuoteParts },
-                  { id: 'quote-labour', label: 'Labour (₹)', value: quoteLabor, set: setQuoteLabor },
-                  { id: 'quote-diag', label: 'Inspection fee (₹)', value: quoteDiagnostic, set: setQuoteDiagnostic },
-                  { id: 'quote-tax', label: 'Supplies and GST (₹)', value: quoteTax, set: setQuoteTax },
+                  { id: 'quote-parts', label: 'Replacement parts (₹)', value: quoteParts, set: setQuoteParts, check: lineChecks.parts },
+                  { id: 'quote-labour', label: 'Labour (₹)', value: quoteLabor, set: setQuoteLabor, check: lineChecks.labour },
+                  { id: 'quote-diag', label: 'Inspection fee (₹)', value: quoteDiagnostic, set: setQuoteDiagnostic, check: lineChecks.diagnostic },
+                  { id: 'quote-tax', label: 'Supplies and GST (₹)', value: quoteTax, set: setQuoteTax, check: lineChecks.tax },
                 ].map((f) => (
                   <div key={f.id} className="min-w-0">
-                    <label htmlFor={f.id} className="mb-1.5 block text-sm text-slate-700">
-                      {f.label}
-                    </label>
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <label htmlFor={f.id} className="block text-sm text-slate-700">
+                        {f.label}
+                      </label>
+                      <FlagPill flag={f.check.flag} />
+                    </div>
                     <input
                       id={f.id}
                       type="number"
@@ -853,9 +927,29 @@ export const RepairAnalysis = () => {
                       onChange={(e) => f.set(Math.max(0, Number(e.target.value) || 0))}
                       className={inputCls}
                     />
+                    {f.check.range && (
+                      <p className="mt-1 text-xs text-slate-400">
+                        {f.check.isTax
+                          ? `GST is 18%: about ${formatINR(Math.round(quoteBase * GST_RATE))} here`
+                          : `Usual: ${formatINR(f.check.range[0])} – ${formatINR(f.check.range[1])}`}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
+
+              {lineRanges && totalQuoteCost > 0 && (
+                <p
+                  className={`flex items-start gap-2 rounded-2xl px-4 py-3 text-sm ${
+                    flaggedLines ? 'border border-amber-200 bg-amber-50 text-amber-800' : 'bg-[#eef6f2] text-[#0d4a3e]'
+                  }`}
+                >
+                  {flaggedLines ? <TriangleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" /> : <CircleCheck className="mt-0.5 h-4 w-4 flex-shrink-0" />}
+                  {flaggedLines
+                    ? `${flaggedLines} line${flaggedLines > 1 ? 's are' : ' is'} above the usual price for the ${deviceInfo.model}. Ask the shop to explain ${flaggedLines > 1 ? 'them' : 'it'} before you agree.`
+                    : `Every line is within the usual price for the ${deviceInfo.model}.`}
+                </p>
+              )}
 
               <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#FAFBF9] px-5 py-4">
                 <div className="min-w-0">
@@ -1057,6 +1151,54 @@ export const RepairAnalysis = () => {
               </button>
             </div>
           </Card>
+
+          {/* Why this verdict (RAG over the repair guides, with sources) */}
+          {decisionReady && (
+            <Card className="p-6 sm:p-7">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-[#eef6f2] text-[#0d5b46]">
+                  <BookOpen className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-medium text-slate-900">Why {currentRec.verdict.toLowerCase()}?</h3>
+                  <p className="mt-0.5 text-sm text-slate-500">Explained from our repair guides. The score decides the verdict; this explains it.</p>
+                </div>
+              </div>
+
+              {explanation.loading && !explanation.data ? (
+                <p className="mt-5 flex items-center gap-2 text-sm text-slate-500">
+                  <LoaderCircle className="h-4 w-4 animate-spin text-[#0d5b46]" /> Reading the repair guides…
+                </p>
+              ) : explanation.error ? (
+                <p className="mt-5 text-sm text-red-700">{explanation.error}</p>
+              ) : explanation.data ? (
+                <div className={`mt-5 space-y-4 transition-opacity ${explanation.loading ? 'opacity-60' : ''}`}>
+                  <p className="text-[15px] leading-relaxed text-slate-800">{explanation.data.summary}</p>
+                  <ul className="space-y-2.5">
+                    {explanation.data.points.map((p, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm leading-relaxed text-slate-700">
+                        <span className="mt-[0.5em] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#0d5b46]" />
+                        <span className="min-w-0">
+                          {p.text}{' '}
+                          <sup className="whitespace-nowrap font-medium text-[#0d5b46]">[{p.source}]</sup>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="border-t border-slate-100 pt-4">
+                    <p className={eyebrow}>Sources</p>
+                    <ol className="mt-2 space-y-1 text-xs text-slate-500">
+                      {explanation.data.sources.map((s) => (
+                        <li key={s.id}>
+                          <span className="font-medium text-slate-700">[{s.id}] {s.title}</span> · {s.source}, {s.page}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+              ) : null}
+            </Card>
+          )}
 
           {/* Factor breakdown */}
           <Card className="p-6 sm:p-7">
